@@ -1,0 +1,3 @@
+[submodule "esphome\\config\\external_components\\ens220"]
+	path = esphome\\config\\external_components\\ens220
+	url = https://github.com/sciosense/ens220-arduino
