@@ -1,0 +1,35 @@
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    DEVICE_CLASS_PRESSURE,
+    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PASCAL,
+)
+
+DEPENDENCIES = ["i2c"]
+
+ens220_ns = cg.esphome_ns.namespace("ens220")
+ens220 = ens220_ns.class_("ens220", cg.PollingComponent, i2c.I2CDevice)
+
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(
+        ens220,
+        unit_of_measurement=UNIT_PASCAL,
+        device_class=DEVICE_CLASS_PRESSURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        icon=ICON_EMPTY,
+        accuracy_decimals=1,
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x01))
+)
+
+
+async def to_code(config):
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+
+    cg.add(var.set_pressure_sensor(var))
