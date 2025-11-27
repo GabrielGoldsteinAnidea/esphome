@@ -2,3 +2,6 @@
 	path = config\\external_components\\ens220
 	url = https://github.com/sciosense/ens220-arduino.git
 	branch = HEAD
+[submodule "config/external_components/ens220/config\\external_components\\ens220"]
+	path = config/external_components/ens220/config\\external_components\\ens220
+	url = https://github.com/sciosense/ens220-arduino
