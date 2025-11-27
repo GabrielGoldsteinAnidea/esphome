@@ -1,3 +1,4 @@
-[submodule "sciosense-ens220-arduino"]
-	path = config\\external_components\\ens220
-	url = https://github.com/sciosense/ens220-arduino.git
+
+[submodule "config\\external_components\\ens220\\sciosense-ens220-arduino"]
+	path = config\\external_components\\ens220\\sciosense-ens220-arduino
+	url = https://github.com/sciosense/ens220-arduino
