@@ -9,6 +9,8 @@ esphome:
   platformio_options:
     board_build.mcu: esp32s2
     board_build.variant: esp32s2
+  includes:
+    - external_components/ens220/sciosense-ens220-arduino/
 
 api:
   encryption:
@@ -375,7 +377,7 @@ sensor:
   - platform: ens220
     name: Pressure
     id: i2cdev
-    address: 0x40
+    address: 0x20
     update_interval: 2s
 
   - platform: aht10
