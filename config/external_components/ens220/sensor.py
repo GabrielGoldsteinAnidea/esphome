@@ -1,15 +1,14 @@
 import esphome.codegen as cg
-from esphome.components import i2c, sensor
+from esphome.components import binary_sensor, i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_EVENT,
     CONF_ID,
     CONF_PRESSURE,
+    DEVICE_CLASS_OPENING,
     DEVICE_CLASS_PRESSURE,
     ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
-    UNIT_EMPTY,
     UNIT_PASCAL,
 )
 
@@ -29,10 +28,8 @@ CONFIG_SCHEMA = (
                 icon=ICON_EMPTY,
                 accuracy_decimals=1,
             ),
-            cv.Required(CONF_EVENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
-                # device_class=DEVICE_CLASS_OPENING,
-                state_class=STATE_CLASS_NONE,
+            cv.Required(CONF_EVENT): binary_sensor.binary_sensor_schema(
+                device_class=DEVICE_CLASS_OPENING,
                 icon=ICON_EMPTY,
             ),
         }
@@ -52,5 +49,5 @@ async def to_code(config):
     cg.add(var.set_pressure_sensor(sensPressure))
 
     event = config.get(CONF_EVENT)
-    sensEvent = await sensor.new_sensor(event)
+    sensEvent = await binary_sensor.new_binary_sensor(event)
     cg.add(var.set_event_sensor(sensEvent))

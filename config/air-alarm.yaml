@@ -64,7 +64,7 @@ esp32_touch:
 logger:
   level: INFO
   hardware_uart: USB_CDC
-  logs:
+#  logs:
 #    i2c: VERBOSE
 #    ens220: DEBUG
 
@@ -386,7 +386,7 @@ sensor:
     event:
       name: Pressure Event
       id: ens220_event
-    update_interval: 500ms
+    update_interval: 64ms
 
   - platform: aht10
     temperature:
