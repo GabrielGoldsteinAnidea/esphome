@@ -177,11 +177,6 @@ void detect_events(float p, float t, float m, float d, float alpha) {
 }
 
 void setup(class esphome::ens220::ens220 *esphomeParent) {
-  // pinMode(OPTIONAL_LED_PIN, OUTPUT);
-  // Serial.begin(SERIAL_BAUDRATE);
-
-  // Wire.begin();
-
 // If DEBUG_ENS220 is enabled and we're in an environment with a Serial/Print device,
 // enable debugging. For EspHome we provide a small Print wrapper that forwards debug
 // output to ESP_LOGD so that debug output appears in the platform logs.
@@ -243,27 +238,41 @@ void ens220_setup(class esphome::ens220::ens220 *esphomeParent) {
   // Choose the desired configuration of the sensor. In this example we will use the settings described in the
   // application note
   ens220.setDefaultConfiguration();
+
   // Set the Pressure ADC conversion time (MEAS_CFG register, field P_CONV)
+  ESP_LOGVV(esphome::ens220::TAG, "Configuring ENS220_PRESSURE_CONVERSION_TIME_T_8_2 sensor...");
   ens220.setPressureConversionTime(ENS220_PRESSURE_CONVERSION_TIME_T_8_2);
-  // Set the Oversampling of pressure measurements (OVS_CFG register, field OVSP)
+
+  ESP_LOGVV(esphome::ens220::TAG, "Configuring ENS220_OVERSAMPLING_N_32 sensor...");
   ens220.setOversamplingOfPressure(ENS220_OVERSAMPLING_N_32);
+
   // Set the Oversampling of temperature measurements (OVS_CFG register, field OVST)
+  ESP_LOGVV(esphome::ens220::TAG, "Configuring ENS220_OVERSAMPLING_N_4 sensor...");
   ens220.setOversamplingOfTemperature(ENS220_OVERSAMPLING_N_4);
+
   // Set the ratio between P and T measurements as produced by the measurement engine (MEAS_CFG register, field PT_RATE)
+  ESP_LOGVV(esphome::ens220::TAG, "Configuring ENS220_PRESSURE_TEMPERATURE_RATIO_PT_4 sensor...");
   ens220.setPressureTemperatureRatio(ENS220_PRESSURE_TEMPERATURE_RATIO_PT_4);
+
   // Set the operation to One shot (STBY_CFG register, field STBY_T)
+  ESP_LOGVV(esphome::ens220::TAG, "Configuring ENS220_STANDBY_TIME_CONTINOUS_OPERATION sensor...");
   ens220.setStandbyTime(ENS220_STANDBY_TIME_CONTINOUS_OPERATION);
+
   // Set whether to use the FIFO buffer, a moving average, or none (MODE_CFG register, field FIFO_MODE)
+  ESP_LOGVV(esphome::ens220::TAG, "Configuring ENS220_PRESSURE_DATA_PATH_DIRECT sensor...");
   ens220.setPressureDataPath(ENS220_PRESSURE_DATA_PATH_DIRECT);
 
   // Write the desired configuration into the sensor
+  ESP_LOGVV(esphome::ens220::TAG, "writeConfiguration ENS220 sensor...");
   ens220.writeConfiguration();
 
   // Start continous
   ens220.startContinuousMeasure(ENS220_SENSOR_PRESSURE);
+
+  ESP_LOGI(esphome::ens220::TAG, "end ENS220 sensor...");
 }
 
-void loop() {
+Result loop() {
   // Check the DATA_STAT from the sensor. Read data, if available
   relative_time_ms = esphome::millis();
   auto result = ens220.update();
@@ -278,17 +287,17 @@ void loop() {
                   average_calculation_decay_rate);
 
     // Print all the current values (they can be plotted with the Serial Plotter)
-    ESP_LOGD(esphome::ens220::TAG, "Abs_P[hPa]: %f\tRel_P[Pa]: %f\tEvent_detected: %d", absolute_pressure_Pa,
+    ESP_LOGI(esphome::ens220::TAG, "Abs_P[hPa]: %f\tRel_P[Pa]: %f\tEvent_detected: %d", absolute_pressure_Pa,
              relative_pressure_Pa, state.event_detected);
-
-    // Light up LED if event was detected (if connected)
-    toggle_led();
 
     last_readout_time_ms = relative_time_ms;
 
   } else {
     ESP_LOGW(esphome::ens220::TAG, "Read-out skipped. No data available");
+    return RESULT_INVALID;
   }
+
+  return RESULT_OK;
 }
 
 void toggle_led() {
@@ -322,62 +331,17 @@ void turn_led_off() {
 namespace esphome {
 namespace ens220 {
 
-unsigned char ens220::compute_crc8(unsigned char *data, size_t length, unsigned char polynomial,
-                                   unsigned char init_value) {
-  unsigned char crc = init_value;
-
-  for (size_t i = 0; i < length; i++) {
-    crc ^= data[i];  // XOR the byte with the current CRC value
-    for (int bit = 0; bit < 8; bit++) {
-      if (crc & 0x80) {                 // If the top bit is 1
-        crc = (crc << 1) ^ polynomial;  // Shift left and XOR with polynomial
-      } else {
-        crc <<= 1;  // Just shift left
-      }
-      crc &= 0xFF;  // Ensure CRC is 8 bits
-    }
-  }
-
-  return crc;
-}
-
 void ens220::setup() { ens220Driver::setup(this); }
 
 void ens220::update() {
-  ens220Driver::loop();
+  if (ens220Driver::loop() == RESULT_OK) {
+    this->pressure_->publish_state(ens220Driver::relative_pressure_Pa);
+    this->event_->publish_state(ens220Driver::state.event_detected);
 
-  uint8_t data[3];
-  if (auto b = this->read_bytes_raw(data, sizeof(data))) {
-    ESP_LOGD(TAG, "Raw data %02X%02X, %02X\n", data[0], data[1], data[2]);
-
-    if (this->pressure_ != nullptr) {
-      int16_t rawSigned = (data[0] << 8) | data[1];
-      float pressure = rawSigned;
-
-      uint crc = compute_crc8(data, 2, 0x31, 0x00);
-
-      ESP_LOGD(TAG, "CRC %02X, %02X\n", data[2], crc);
-
-      if (data[2] != crc) {
-        ESP_LOGW(TAG, "CRC Failed");
-        return;
-      }
-
-      ESP_LOGD(TAG, "raw int %d, float %f\n", rawSigned, pressure);
-
-      pressure /= 60.0;  // Scale factor for Pa
-
-      if (std::isnan(pressure)) {
-        ESP_LOGW(TAG, "Invalid pressure reading (0%%), ");
-      }
-
-      this->pressure_->publish_state(pressure);
-
-      this->status_clear_warning();
-    }
-
+    this->status_clear_warning();
   } else {
-    ESP_LOGW(TAG, "Fail");
+    this->status_set_warning("Failed to read ENS220");
+    ESP_LOGW(TAG, "Invalid pressure reading (0%%), ");
   }
 }
 

@@ -14,12 +14,12 @@ class ens220 : public sensor::Sensor, public PollingComponent, public i2c::I2CDe
   void dump_config() override;
 
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_ = pressure_sensor; }
+  void set_event_sensor(sensor::Sensor *event_sensor) { event_ = event_sensor; }
 
  protected:
   sensor::Sensor *pressure_{nullptr};
 
- private:
-  uint8_t compute_crc8(unsigned char *data, size_t length, unsigned char polynomial, unsigned char init_value);
+  sensor::Sensor *event_{nullptr};
 };
 
 }  // namespace ens220

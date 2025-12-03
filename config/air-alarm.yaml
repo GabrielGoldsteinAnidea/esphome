@@ -62,7 +62,11 @@ esp32_touch:
 
 # Enable logging
 logger:
+  level: INFO
   hardware_uart: USB_CDC
+  logs:
+#    i2c: VERBOSE
+#    ens220: DEBUG
 
 ota:
   - platform: esphome
@@ -82,7 +86,6 @@ i2c:
   frequency: 400kHz
   scl: 33
   sda: 34
-  scan: false
 
 spi:
   - id: spi_lcd
@@ -375,10 +378,15 @@ sensor:
       name: "CPU Frequency"
 
   - platform: ens220
-    name: Pressure
-    id: i2cdev
-    address: 0x20
-    update_interval: 2s
+    pressure:
+      name: Pressure
+      unit_of_measurement: hPa
+      accuracy_decimals: 4
+      id: ens220_pressure
+    event:
+      name: Pressure Event
+      id: ens220_event
+    update_interval: 500ms
 
   - platform: aht10
     temperature:
@@ -402,7 +410,7 @@ sensor:
       id: dps310_pressure
       name: DPS310 Pressure
       accuracy_decimals: 3
-    update_interval: 100ms
+    update_interval: 1s
 graph:
   - id: temperature_graph
     sensor: dps310_temperature
@@ -412,7 +420,7 @@ graph:
     width: 150
     height: 50
   - id: pressure_graph
-    sensor: dps310_pressure
+    sensor: ens220_pressure
     duration: 10s
     border: False
     color: color_cool_purple
@@ -452,7 +460,7 @@ display:
           it.graph(90, 160, id(pressure_graph));
           it.printf(40, 70, id(roboto_metric), id(color_heavy_blue), TextAlign::CENTER, "%.1f°", id(aht20_temperature).state * 1.8 + 32);
           it.printf(40, 130, id(roboto_metric), id(color_sea_green), TextAlign::CENTER, "%.1f%%", id(aht20_humidity).state);
-          it.printf(40, 190, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "%.1f", id(dps310_pressure).state);
+          it.printf(40, 190, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "%.1f", id(ens220_pressure).state);
           it.printf(40, 220, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "nhPa");
 
       #          it.graph(90, 100, id(humidity_graph));
@@ -466,6 +474,6 @@ display:
           it.strftime(6, 6, id(roboto_small), id(color_gray), TextAlign::TOP_LEFT, "%Y-%m-%d", id(esptime).now());
           it.strftime((it.get_width() - 6), 6, id(roboto_small), id(color_gray), TextAlign::TOP_RIGHT, "%H:%M:%S", id(esptime).now());
           it.print(it.get_width() / 2, 6, id(roboto_small), logo_color, TextAlign::TOP_CENTER, "ESPHome");
-          it.printf(it.get_width() / 2, vert_center - vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::BOTTOM_CENTER, "%.1f hPa", id(dps310_pressure).state);
+          it.printf(it.get_width() / 2, vert_center - vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::BOTTOM_CENTER, "%.1f hPa", id(ens220_pressure).state);
           it.printf(it.get_width() / 2, vert_center, id(roboto_large), id(color_white), TextAlign::CENTER, "%.1f°", id(aht20_temperature).state * 1.8 + 32);
           it.printf(it.get_width() / 2, vert_center + vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::TOP_CENTER, "%.1f%%", id(aht20_humidity).state);
