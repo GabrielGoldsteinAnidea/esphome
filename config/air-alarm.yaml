@@ -10,7 +10,7 @@ esphome:
     board_build.mcu: esp32s2
     board_build.variant: esp32s2
   includes:
-    - external_components/ens220/sciosense-ens220-arduino/
+    - external_components/esphome-ens220/components/ens220/sciosense-ens220-arduino
 
 api:
   encryption:
@@ -28,8 +28,10 @@ text_sensor:
 
 external_components:
   - source:
+      # type: git
+      # path: external_components/esphome-ens220
       type: local
-      path: external_components
+      path: external_components/esphome-ens220/components
     components:
       - ens220
     refresh: always

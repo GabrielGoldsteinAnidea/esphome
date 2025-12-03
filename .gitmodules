@@ -1,4 +1,3 @@
-
-[submodule "config\\external_components\\ens220\\sciosense-ens220-arduino"]
-	path = config\\external_components\\ens220\\sciosense-ens220-arduino
-	url = https://github.com/GabrielGoldsteinAnidea/ens220-arduino
+[submodule "config/external_components/esphome-ens220"]
+	path = config/external_components/esphome-ens220
+	url = https://github.com/midnight-security/esphome-ens220.git
