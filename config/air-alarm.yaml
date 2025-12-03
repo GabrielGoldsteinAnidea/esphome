@@ -9,8 +9,6 @@ esphome:
   platformio_options:
     board_build.mcu: esp32s2
     board_build.variant: esp32s2
-  includes:
-    - external_components/esphome-ens220/components/ens220/sciosense-ens220-arduino
 
 api:
   encryption:
@@ -26,15 +24,8 @@ text_sensor:
     reset_reason:
       name: "Reset Reason"
 
-external_components:
-  - source:
-      # type: git
-      # path: external_components/esphome-ens220
-      type: local
-      path: external_components/esphome-ens220/components
-    components:
-      - ens220
-    refresh: always
+packages:
+  - !include external_components/esphome-ens220/components/ens220/air-alarm-ens220.yaml
 
 # Thanks to this configuration for the initial legwork https://github.com/kbx81/esphome-configs/blob/main/dev/esp-funhouse.yaml
 
@@ -378,18 +369,6 @@ sensor:
       name: "Free PSRAM"
     cpu_frequency:
       name: "CPU Frequency"
-
-  - platform: ens220
-    pressure:
-      name: Pressure
-      unit_of_measurement: hPa
-      accuracy_decimals: 4
-      id: ens220_pressure
-    event:
-      name: Pressure Event
-      id: ens220_event
-    update_interval: 64ms
-
   - platform: aht10
     temperature:
       id: aht20_temperature
