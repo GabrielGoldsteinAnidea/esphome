@@ -25,7 +25,12 @@ text_sensor:
       name: "Reset Reason"
 
 packages:
-  - !include external_components/esphome-ens220/air-alarm-ens220.yaml
+  #  - !include external_components/esphome-ens220/air-alarm-ens220.yaml
+  ens220:
+    url: https://github.com/midnight-security/esphome-ens220
+    username: gghomeassistant
+    password: !secret github_token
+    file: air-alarm-ens220.yaml
 
 # Thanks to this configuration for the initial legwork https://github.com/kbx81/esphome-configs/blob/main/dev/esp-funhouse.yaml
 
