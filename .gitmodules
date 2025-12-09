@@ -1,3 +1,7 @@
 [submodule "config/external_components/esphome-ens220"]
 	path = config/external_components/esphome-ens220
 	url = https://github.com/midnight-security/esphome-ens220.git
+
+[submodule "config/external_components/esphome-toybox"]
+	path = config/external_components/esphome-toybox
+	url = https://github.com/GabrielGoldsteinAnidea/esphome-toybox.git
