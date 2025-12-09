@@ -17,6 +17,7 @@ namespace mprls {
 #define COUNTS_224 (16777216L)
 #define PSI_to_HPA (68.947572932)
 #define MPRLS_STATUS_MASK (0b01100101)
+#define READ_CMD 0xAA
 
 class mprls : public sensor::Sensor,
               public binary_sensor::BinarySensor,
@@ -30,8 +31,13 @@ class mprls : public sensor::Sensor,
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_ = pressure_sensor; }
   //  void set_event_sensor(binary_sensor::BinarySensor *event_sensor) { event_ = event_sensor; }
 
+  float get_setup_priority() const override;
+
   void set_pressure_max(float max_pressure);
   void set_pressure_min(float min_pressure);
+
+  void set_output_max(float max_output);
+  void set_output_min(float min_output);
 
  protected:
   sensor::Sensor *pressure_{nullptr};

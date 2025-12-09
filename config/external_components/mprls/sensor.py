@@ -19,6 +19,8 @@ mprls = mprls_ns.class_("mprls", cg.PollingComponent, i2c.I2CDevice)
 
 CONF_PASCAL_MAX = "maximum_pascal"
 CONF_PASCAL_MIN = "minimum_pascal"
+CONF_OUTPUT_MAX = "output_max"
+CONF_OUTPUT_MIN = "output_min"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -37,6 +39,8 @@ CONFIG_SCHEMA = (
             # ),
             cv.Optional(CONF_PASCAL_MAX, default=300.0): cv.float_,
             cv.Optional(CONF_PASCAL_MIN, default=0.0): cv.float_,
+            cv.Optional(CONF_OUTPUT_MAX, default=95): cv.float_,
+            cv.Optional(CONF_OUTPUT_MIN, default=5): cv.float_,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -64,3 +68,9 @@ async def to_code(config):
     # Use these parameters to set properties of your C++ component
     cg.add(var.set_pressure_max(pressure_Max))
     cg.add(var.set_pressure_min(pressure_Min))
+
+    output_Max = config[CONF_OUTPUT_MAX]
+    output_Min = config[CONF_OUTPUT_MIN]
+
+    cg.add(var.set_output_max(output_Max))
+    cg.add(var.set_output_min(output_Min))
