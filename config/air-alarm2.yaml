@@ -11,4 +11,4 @@ esphome:
     board_build.variant: esp32s2
 
 packages:
-  - !include air-alarm-common.yaml
+  - !include common/air-alarm-common.yaml
