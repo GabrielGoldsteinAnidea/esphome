@@ -383,12 +383,12 @@ sensor:
     humidity:
       id: aht20_humidity
       name: AHT20 Humidity
-    update_interval: 15s
+    update_interval: 30s
   - platform: dps310
     temperature:
       id: dps310_temperature
       name: DPS310 Temperature
-      unit_of_measurement: °F
+      unit_of_measurement: °C
       filters:
         - offset: -2.6
     pressure:
@@ -396,7 +396,7 @@ sensor:
       id: dps310_pressure
       name: DPS310 Pressure
       accuracy_decimals: 3
-    update_interval: 1s
+    update_interval: 30s
 graph:
   - id: temperature_graph
     sensor: dps310_temperature
