@@ -5,6 +5,30 @@ api:
 debug:
   update_interval: 5s
 
+http_request:
+  useragent: esphome/influxdb
+  timeout: 15s
+  watchdog_timeout: 15s
+
+influxdb_v2_oss:
+  url: !secret influxdb_url
+  organization: !secret influxdb_org
+  token: !secret influxdb_token
+  backlog_max_depth: 60
+  backlog_drain_batch: 10
+  tags:
+    device: ${friendly_name}
+  measurements:
+    - id: _air_events
+      bucket: ${friendly_name}
+      name: airevents
+      sensors:
+        - sensor_id: _uptime
+          name: uptime
+      binary_sensors:
+        - sensor_id: _ens220_event
+          name: ens220_event
+
 text_sensor:
   - platform: debug
     device:
@@ -32,6 +56,8 @@ external_components:
       - ens220
     refresh: always
 
+  - source: github://kpfleming/esphome-influxdb_v2_oss
+
 # Thanks to this configuration for the initial legwork https://github.com/kbx81/esphome-configs/blob/main/dev/esp-funhouse.yaml
 
 esp32:
@@ -47,24 +73,16 @@ esp32:
 psram:
   speed: 80MHz
 
-# esp32_touch:
-#   # setup_mode: true
-#   measurement_duration: 100us
-#   denoise_grade: BIT12
-#   denoise_cap_level: L0
-#   debounce_count: 1
-#   filter_mode: IIR_16
-#   noise_threshold: 0
-#   jitter_step: 0
-#   smooth_mode: IIR_2
-
 # Enable logging
 logger:
   level: INFO
   hardware_uart: USB_CDC
-#  logs:
-#    i2c: VERBOSE
-#    ens220: DEBUG
+  logs:
+    i2c.idf: WARN
+    ens220: INFO
+    graph: WARN
+    ledc: WARN
+    st7789v: WARN
 
 ota:
   - platform: esphome
@@ -78,6 +96,8 @@ time:
   - platform: homeassistant
     id: esptime
     timezone: EST+5EDT,M3.2.0/2,M11.1.0/2
+  - platform: sntp
+    id: sntp_time
 
 i2c:
   id: i2c_bus
@@ -114,34 +134,7 @@ binary_sensor:
   - platform: status
     name: Status
     id: conn_status
-    # on_press:
-    #   then:
-    #     - display.page.show: page1
-    #     - if:
-    #         condition:
-    #           switch.is_on: auto_dotstar
-    #         then:
-    #           - light.control:
-    #               id: dotstar_light
-    #               state: on
-    #               effect: None
-    # on_release:
-    #   then:
-    #     - display.page.show: page2
-    #     - if:
-    #         condition:
-    #           switch.is_on: auto_dotstar
-    #         then:
-    #           - light.control:
-    #               id: dotstar_light
-    #               state: on
-    #               effect: Random Twinkle
-    #   - platform: gpio
-    #     id: motion_sense
-    #     name: Motion Detection
-    #     device_class: motion
-    #     pin:
-    #       number: 16
+
   - platform: gpio
     id: button_input_0
     name: Button Up
@@ -172,78 +165,6 @@ binary_sensor:
         pullup: true
     on_press:
       - light.toggle: dotstar_light
-#   - platform: esp32_touch
-#     id: touchpad_left
-#     name: Touchpad Left
-#     pin: 6
-#     threshold: 50000
-#     on_press:
-#       - rtttl.play: "alert 1:d=8,o=5,b=160:e"
-#     on_release:
-#       - rtttl.play: "alert 1:d=8,o=4,b=160:a"
-#   - platform: esp32_touch
-#     id: touchpad_center
-#     name: Touchpad Middle
-#     pin: 7
-#     threshold: 50000
-#     on_press:
-#       - rtttl.play: "alert 1:d=8,o=6,b=160:e"
-#     on_release:
-#       - rtttl.play: "alert 1:d=8,o=5,b=160:a"
-#   - platform: esp32_touch
-#     id: touchpad_right
-#     name: Touchpad Right
-#     pin: 8
-#     threshold: 50000
-#     on_press:
-#       - rtttl.play: "alert 1:d=8,o=7,b=160:e"
-#     on_release:
-#       - rtttl.play: "alert 1:d=8,o=6,b=160:a"
-#   - platform: esp32_touch
-#     id: touchpad_slider_a
-#     name: Touchpad Slider A
-#     pin: 9
-#     threshold: 50000
-#     on_press:
-#       - light.turn_on:
-#           id: dotstar_light
-#           brightness: 100%
-#   - platform: esp32_touch
-#     id: touchpad_slider_b
-#     name: Touchpad Slider B
-#     pin: 10
-#     threshold: 50000
-#     on_press:
-#       - light.turn_on:
-#           id: dotstar_light
-#           brightness: 80%
-#   - platform: esp32_touch
-#     id: touchpad_slider_c
-#     name: Touchpad Slider C
-#     pin: 11
-#     threshold: 50000
-#     on_press:
-#       - light.turn_on:
-#           id: dotstar_light
-#           brightness: 60%
-#   - platform: esp32_touch
-#     id: touchpad_slider_d
-#     name: Touchpad Slider D
-#     pin: 12
-#     threshold: 50000
-#     on_press:
-#       - light.turn_on:
-#           id: dotstar_light
-#           brightness: 40%
-#   - platform: esp32_touch
-#     id: touchpad_slider_e
-#     name: Touchpad Slider E
-#     pin: 13
-#     threshold: 50000
-#     on_press:
-#       - light.turn_on:
-#           id: dotstar_light
-#           brightness: 20%
 
 color:
   - id: color_heavy_blue
@@ -320,11 +241,6 @@ output:
     pin: 42
     channel: 2
 
-# rtttl:
-#   output: rtttl_out
-#   on_finished_playback:
-#     - logger.log: 'Song ended!'
-
 switch:
   - platform: template
     id: auto_dotstar
@@ -352,14 +268,18 @@ number:
     step: 0.01
     initial_value: 0.5
     restore_value: true
+
 sensor:
-  # Phototransistor ADC sensor...can't use with Wi-Fi :(
-  # - platform: adc
-  #   id: phototransistor
-  #   name: Phototransistor ADC
-  #   pin: 18
-  #   attenuation: 11db
-  #   update_interval: 1s
+  - id: _uptime
+    platform: uptime
+    name: ${friendly_name} Uptime
+    on_value:
+      then:
+        - if:
+            condition:
+              time.has_time:
+            then:
+              - influxdb.publish: _air_events
 
   - platform: debug
     # free:
@@ -406,20 +326,14 @@ graph:
     width: 150
     height: 50
   - id: pressure_graph
-    sensor: ens220_pressure
+    sensor: _ens220_pressure
     duration: 10s
     border: False
     color: color_cool_purple
     width: 150
     height: 50
     max_range: 1
-    # - id: humidity_graph
-    #   sensor: aht20_humidity
-    #   duration: 1h
-    #   border: False
-    #   color: color_sea_green
-    #   width: 150
-    #   height: 50
+
 display:
   - platform: st7789v
     id: main_lcd
@@ -446,7 +360,7 @@ display:
           it.graph(90, 160, id(pressure_graph));
           it.printf(40, 70, id(roboto_metric), id(color_heavy_blue), TextAlign::CENTER, "%.1f°", id(aht20_temperature).state * 1.8 + 32);
           it.printf(40, 130, id(roboto_metric), id(color_sea_green), TextAlign::CENTER, "%.1f%%", id(aht20_humidity).state);
-          it.printf(40, 190, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "%.1f", id(ens220_pressure).state);
+          it.printf(40, 190, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "%.1f", id(_ens220_pressure).state);
           it.printf(40, 220, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "nhPa");
 
       #          it.graph(90, 100, id(humidity_graph));
@@ -460,6 +374,6 @@ display:
           it.strftime(6, 6, id(roboto_small), id(color_gray), TextAlign::TOP_LEFT, "%Y-%m-%d", id(esptime).now());
           it.strftime((it.get_width() - 6), 6, id(roboto_small), id(color_gray), TextAlign::TOP_RIGHT, "%H:%M:%S", id(esptime).now());
           it.print(it.get_width() / 2, 6, id(roboto_small), logo_color, TextAlign::TOP_CENTER, "ESPHome");
-          it.printf(it.get_width() / 2, vert_center - vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::BOTTOM_CENTER, "%.1f hPa", id(ens220_pressure).state);
+          it.printf(it.get_width() / 2, vert_center - vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::BOTTOM_CENTER, "%.1f hPa", id(_ens220_pressure).state);
           it.printf(it.get_width() / 2, vert_center, id(roboto_large), id(color_white), TextAlign::CENTER, "%.1f°", id(aht20_temperature).state * 1.8 + 32);
           it.printf(it.get_width() / 2, vert_center + vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::TOP_CENTER, "%.1f%%", id(aht20_humidity).state);
