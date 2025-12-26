@@ -25,7 +25,6 @@ influxdb_v2_oss:
       sensors:
         - sensor_id: _uptime
           name: uptime
-      binary_sensors:
         - sensor_id: _ens220_event
           name: ens220_event
 

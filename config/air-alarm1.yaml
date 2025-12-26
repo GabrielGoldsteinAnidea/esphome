@@ -1,6 +1,6 @@
 substitutions:
-  name: air-alarm
-  friendly_name: airalarm
+  name: air-alarm1
+  friendly_name: airalarm1
 
 esphome:
   name: ${name}
