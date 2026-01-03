@@ -1,6 +1,6 @@
 substitutions:
-  name: air-alarm1
-  friendly_name: airalarm1
+  name: air-alarm-1
+  friendly_name: air-alarm-1
 
 esphome:
   name: ${name}
@@ -10,6 +10,10 @@ esphome:
     board_build.mcu: esp32s2
     board_build.variant: esp32s2
     board_build.f_cpu: 240000000
+
+# for firmware updating if the name changes.
+# wifi:
+  # use_address: air-alarm1.local
 
 packages:
   - !include common/air-alarm-common.yaml
