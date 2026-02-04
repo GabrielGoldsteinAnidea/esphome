@@ -145,3 +145,4 @@ sdkconfig.*
 
 api-docs/
 dependencies.lock
+esp-idf-test/

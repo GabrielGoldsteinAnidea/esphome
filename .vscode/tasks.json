@@ -3,8 +3,8 @@
   "tasks": [
     {
       "label": "Run Dashboard",
-      "type": "shell",
-      "command": "${command:python.interpreterPath}",
+      "type": "process",
+      "command": "${workspaceFolder}\\venv\\Scripts\\python.exe",
       "args": [
         "-m",
         "esphome",
@@ -53,6 +53,181 @@
         "close": true,
         "panel": "new"
       },
+      "problemMatcher": []
+    },
+    {
+      "label": "Pre-Debug (midnight)",
+      "type": "shell",
+      "command": "py",
+      "args": [
+        "-m",
+        "platformio",
+        "debug",
+        "--environment",
+        "midnight"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "ESPHOME: Generate midnight PIO project",
+      "type": "process",
+      "command": "${workspaceFolder}\\venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "esphome",
+        "compile",
+        "--only-generate",
+        "config/midnight.yaml"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Pre-Debug (midnight, generated)",
+      "type": "shell",
+      "command": "py",
+      "args": [
+        "-m",
+        "platformio",
+        "debug",
+        "-d",
+        "config/.esphome/build/midnight",
+        "-e",
+        "midnight"
+      ],
+      "dependsOn": [
+        "ESPHOME: Generate midnight PIO project"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenOCD (midnight, builtin usb-jtag)",
+      "type": "process",
+      "command": "c:\\work\\platformio\\packages\\tool-openocd-esp32\\bin\\openocd.exe",
+      "args": [
+        "-s",
+        "c:\\work\\platformio\\packages\\tool-openocd-esp32\\share\\openocd\\scripts",
+        "-f",
+        "board/esp32c5-builtin.cfg"
+      ],
+      "isBackground": true,
+      "dependsOn": [
+        "PIO: Build midnight (generated)"
+      ],
+      "problemMatcher": {
+        "owner": "openocd",
+        "pattern": [
+          {
+            "regexp": "^([^:]+):(\\d+):(.*)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^Open On-Chip Debugger",
+          "endsPattern": "Listening on port 3333 for gdb connections"
+        }
+      }
+    },
+    {
+      "label": "OpenOCD (midnight, espressif builtin usb-jtag, no build)",
+      "type": "process",
+      "command": "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\bin\\openocd.exe",
+      "args": [
+        "-s",
+        "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\share\\openocd\\scripts",
+        "-f",
+        "board/esp32c5-builtin.cfg"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "openocd",
+        "pattern": [
+          {
+            "regexp": "^([^:]+):(\\d+):(.*)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^Open On-Chip Debugger",
+          "endsPattern": "Listening on port 3333 for gdb connections"
+        }
+      }
+    },
+    {
+      "label": "OpenOCD: Program midnight (espressif builtin usb-jtag)",
+      "type": "process",
+      "command": "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\bin\\openocd.exe",
+      "args": [
+        "-s",
+        "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\share\\openocd\\scripts",
+        "-f",
+        "board/esp32c5-builtin.cfg",
+        "-c",
+        "program_esp {config/.esphome/build/midnight/.pio/build/midnight/firmware.elf} reset; shutdown"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenOCD: Program+Attach midnight (espressif builtin usb-jtag)",
+      "type": "process",
+      "command": "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\bin\\openocd.exe",
+      "args": [
+        "-s",
+        "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\share\\openocd\\scripts",
+        "-f",
+        "board/esp32c5-builtin.cfg",
+        "-c",
+        "program_esp {config/.esphome/build/midnight/.pio/build/midnight/firmware.elf} reset; reset halt"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "openocd",
+        "pattern": [
+          {
+            "regexp": "^([^:]+):(\\d+):(.*)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^Open On-Chip Debugger",
+          "endsPattern": "Listening on port 3333 for gdb connections"
+        }
+      }
+    },
+    {
+      "label": "Gen+Build+Program+Attach midnight (espressif builtin usb-jtag)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "ESPHOME: Generate midnight PIO project",
+        "PIO: Build midnight (generated)",
+        "OpenOCD: Program+Attach midnight (espressif builtin usb-jtag)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "PIO: Build midnight (generated)",
+      "type": "process",
+      "command": "${workspaceFolder}\\venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "platformio",
+        "run",
+        "-d",
+        "config/.esphome/build/midnight",
+        "-e",
+        "midnight"
+      ],
+      "dependsOn": [
+        "ESPHOME: Generate midnight PIO project"
+      ],
       "problemMatcher": []
     }
   ]

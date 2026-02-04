@@ -5,29 +5,6 @@ api:
 debug:
   update_interval: 5s
 
-http_request:
-  useragent: esphome/influxdb
-  timeout: 15s
-  watchdog_timeout: 15s
-
-influxdb_v2_oss:
-  url: !secret influxdb_url
-  organization: !secret influxdb_org
-  token: !secret influxdb_token
-  backlog_max_depth: 60
-  backlog_drain_batch: 10
-  tags:
-    device: ${friendly_name}
-  measurements:
-    - id: _air_events
-      bucket: ${friendly_name}
-      name: airevents
-      sensors:
-        - sensor_id: _uptime
-          name: uptime
-        - sensor_id: _ens220_event
-          name: ens220_event
-
 text_sensor:
   - platform: debug
     device:
@@ -36,26 +13,26 @@ text_sensor:
       name: "Reset Reason"
 
 packages:
-  #  - !include external_components/esphome-ens220/air-alarm-ens220.yaml
-  ens220:
-    url: https://github.com/midnight-security/esphome-ens220
-    username: gghomeassistant
-    password: !secret github_token
-    file: air-alarm-ens220.yaml
+  - !include ../external_components/esphome-ens220/air-alarm-ens220.yaml
+  # ens220:
+  #   url: https://github.com/midnight-security/esphome-ens220
+  #   username: gghomeassistant
+  #   password: !secret github_token
+  #   file: air-alarm-ens220.yaml
 
 external_components:
   - source:
-      type: git
-      url: https://github.com/midnight-security/esphome-ens220
-      username: gghomeassistant
-      password: !secret github_token
-      #      type: local
-      #      path: external_components/esphome-ens220/components
+      # type: git
+      # url: https://github.com/midnight-security/esphome-ens220
+      # username: gghomeassistant
+      # password: !secret github_token
+      type: local
+      path: external_components/esphome-ens220/components
     components:
       - ens220
     refresh: always
 
-  - source: github://kpfleming/esphome-influxdb_v2_oss
+#  - source: github://kpfleming/esphome-influxdb_v2_oss
 
 # Thanks to this configuration for the initial legwork https://github.com/kbx81/esphome-configs/blob/main/dev/esp-funhouse.yaml
 
@@ -77,11 +54,13 @@ logger:
   level: INFO
   hardware_uart: USB_CDC
   logs:
+    sensor: INFO
     i2c.idf: WARN
     ens220: INFO
     graph: WARN
     ledc: WARN
     st7789v: WARN
+    mqtt: INFO
 
 ota:
   - platform: esphome
@@ -241,6 +220,8 @@ output:
     channel: 2
 
 switch:
+  - platform: restart
+    name: "Restart"
   - platform: template
     id: auto_dotstar
     name: Auto Light Color
@@ -272,13 +253,13 @@ sensor:
   - id: _uptime
     platform: uptime
     name: ${friendly_name} Uptime
-    on_value:
-      then:
-        - if:
-            condition:
-              time.has_time:
-            then:
-              - influxdb.publish: _air_events
+    # on_value:
+    #   then:
+    #     - if:
+    #         condition:
+    #           time.has_time:
+    #         then:
+    #           - influxdb.publish: _air_events
 
   - platform: debug
     # free:

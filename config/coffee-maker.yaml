@@ -12,12 +12,12 @@ logger:
   level: DEBUG
   baud_rate: 115200
 
-# UART Serial Configuration
-uart:
-  - id: uart_0
-    tx_pin: GPIO1
-    rx_pin: GPIO3
-    baud_rate: 115200
+# # UART Serial Configuration
+# uart:
+#   - id: uart_0
+#     tx_pin: GPIO1
+#     rx_pin: GPIO3
+#     baud_rate: 115200
 
 # Enable Home Assistant API
 api:
@@ -48,6 +48,10 @@ binary_sensor:
 # Sensor definitions (required by component)
 sensor:
 
+switch:
+  - platform: restart
+    name: "Coffee Maker Restart"
+
 # I2C Bus Configuration
 i2c:
   id: bus_a
@@ -57,11 +61,11 @@ i2c:
   frequency: 400kHz
 
 # SPI Bus (if needed for displays or other peripherals)
-spi:
-  id: spi_bus
-  clk_pin: GPIO14   # D5
-  mosi_pin: GPIO13  # D7
-  miso_pin: GPIO12  # D6
+# spi:
+  #   id: spi_bus
+  #   clk_pin: GPIO14   # D5
+  #   mosi_pin: GPIO13  # D7
+  #   miso_pin: GPIO12  # D6
 
 # Coffee Maker Component
 external_components:
@@ -73,14 +77,19 @@ external_components:
 coffee_maker:
   i2c_id: bus_a
   address: 0x18
-  update_interval: 30s
+  update_interval: 100ms
 
   # GPIO Pin Configuration (interrupt-driven clocked receiver)
   # Pin numbers (integers) for ESP8266: D0-D8 = GPIO16,GPIO5,GPIO4,GPIO0,GPIO2,GPIO14,GPIO12,GPIO13,GPIO15
-  pin_clock: 12    # D6 - Clock input (triggers on rising edge)
-  pin_data: 13     # D7 - Data input (read on each clock pulse)
-  pin_strobe: 14   # D5 - Strobe input (signals frame end, triggers on rising edge)
-  pin_zio: 15      # D8 - Bidirectional Zio pin (open-drain, can send/receive)
+  # https://cdn-learn.adafruit.com/assets/assets/000/139/874/original/adafruit_products_Huzzah_ESP8266_Pinout_v1.png?1758656732
+  pin_clock: GPIO14         # brown wire top  # D6 - Clock input (triggers on rising edge)
+  pin_data: GPIO13          # orange wire top # D7 - Data input (read on each clock pulse)
+  pin_strobe: GPIO12        # yellow wire top # D5 - Strobe input (signals frame end, triggers on rising edge)
+  pin_buttons_a: GPIO15     # yellow wire (1cup, decaccification)
+  pin_buttons_b: GPIO2      # orange wire (2cup, Premachinio)
+  pin_button_onoff: GPIO16  # white wire  (on/off, hotwater)
+  enable:
+    name: "Coffee Maker Enable"
 
   # Binary Sensors
   one_cup_ready:
@@ -133,4 +142,4 @@ coffee_maker:
     accuracy_decimals: 0
 
 # Optional: Add any additional automations or scripts
-#automation:
+# automation:
