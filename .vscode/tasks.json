@@ -137,6 +137,8 @@
       "args": [
         "-s",
         "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\share\\openocd\\scripts",
+        "-c",
+        "set ESP_RTOS FreeRTOS",
         "-f",
         "board/esp32c5-builtin.cfg"
       ],
@@ -165,6 +167,8 @@
       "args": [
         "-s",
         "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\share\\openocd\\scripts",
+        "-c",
+        "set ESP_RTOS FreeRTOS",
         "-f",
         "board/esp32c5-builtin.cfg",
         "-c",
@@ -179,6 +183,8 @@
       "args": [
         "-s",
         "C:\\Work\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20250707\\openocd-esp32\\share\\openocd\\scripts",
+        "-c",
+        "set ESP_RTOS FreeRTOS",
         "-f",
         "board/esp32c5-builtin.cfg",
         "-c",
