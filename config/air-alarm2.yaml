@@ -1,4 +1,4 @@
-substitutions:
+﻿substitutions:
   name: air-alarm-2
   friendly_name: air-alarm-2
 
@@ -13,7 +13,7 @@ esphome:
 
 # for firmware updating if the name changes.
 # wifi:
-  # use_address: air-alarm1.local
+   # use_address: air-alarm1.local
 
 esp32:
   board: adafruit_funhouse_esp32s2
@@ -55,9 +55,6 @@ spi:
   - id: spi_led
     clk_pin: 15
     mosi_pin: 14
-
-status_led:
-  pin: 37
 
 font:
   - file: "gfonts://Roboto"
@@ -179,6 +176,9 @@ output:
     id: rtttl_out
     pin: 42
     channel: 2
+  - platform: gpio
+    id: red_light
+    pin: GPIO37
 
 switch:
   - platform: template
@@ -196,7 +196,7 @@ switch:
         - light.turn_on: dotstar_light
         - light.turn_on:
             id: dotstar_light
-            effect: Rainbow Effect With Custom Values
+            effect: Rainbow
 number:
   - platform: template
     id: light_brightness
@@ -209,20 +209,6 @@ number:
     restore_value: true
 
 sensor:
-  - platform: debug
-    # free:
-    #   name: "Heap Free"
-    # fragmentation:
-    #   name: "Heap Fragmentation"
-    # block:
-    #   name: "Heap Max Block"
-    loop_time:
-      name: "Loop Time"
-    psram:
-      name: "Free PSRAM"
-    cpu_frequency:
-      name: "CPU Frequency"
-
   - platform: aht10
     temperature:
       id: aht20_temperature
@@ -308,4 +294,5 @@ display:
           it.printf(it.get_width() / 2, vert_center + vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::TOP_CENTER, "%.1f%%", id(aht20_humidity).state);
 
 packages:
+  - !include common/esp_common_core.yaml
   - !include common/air-alarm-common.yaml

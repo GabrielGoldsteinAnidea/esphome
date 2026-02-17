@@ -13,21 +13,21 @@ text_sensor:
       name: "Reset Reason"
 
 packages:
-  # - !include ../external_components/esphome-ens220/air-alarm-ens220.yaml
-  ens220:
-    url: https://github.com/midnight-security/esphome-ens220
-    username: gghomeassistant
-    password: !secret github_token
-    file: air-alarm-ens220.yaml
+  - !include ../external_components/esphome-ens220/air-alarm-ens220.yaml
+  # ens220:
+  #   url: https://github.com/midnight-security/esphome-ens220
+  #   username: gghomeassistant
+  #   password: !secret github_token
+  #   file: air-alarm-ens220.yaml
 
 external_components:
   - source:
-      type: git
-      url: https://github.com/midnight-security/esphome-ens220
-      username: gghomeassistant
-      password: !secret github_token
-      # type: local
-      # path: external_components/esphome-ens220/components
+      # type: git
+      # url: https://github.com/midnight-security/esphome-ens220
+      # username: gghomeassistant
+      # password: !secret github_token
+      type: local
+      path: external_components/esphome-ens220/components
     components:
       - ens220
     refresh: always
@@ -53,17 +53,6 @@ binary_sensor:
     id: conn_status
 
 sensor:
-  - id: _uptime
-    platform: uptime
-    name: ${friendly_name} Uptime
-    # on_value:
-    #   then:
-    #     - if:
-    #         condition:
-    #           time.has_time:
-    #         then:
-    #           - influxdb.publish: _air_events
-
   - platform: debug
     # free:
     #   name: "Heap Free"

@@ -47,4 +47,5 @@ output:
     pin: GPIO13
 
 packages:
+  - !include common/esp_common_core.yaml
   - !include common/air-alarm-common.yaml

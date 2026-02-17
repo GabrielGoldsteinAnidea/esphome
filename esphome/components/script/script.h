@@ -19,7 +19,10 @@ class ScriptLogger {
   void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
+  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param) {
+    static const char *const TAG = "script";
+    esp_log_printf_(level, TAG, line, format, param);
+  }
 #else
   void esp_logw_(int line, const char *format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
@@ -27,7 +30,10 @@ class ScriptLogger {
   void esp_logd_(int line, const char *format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const char *format, const char *param);
+  void esp_log_(int level, int line, const char *format, const char *param) {
+    static const char *const TAG = "script";
+    esp_log_printf_(level, TAG, line, format, param);
+  }
 #endif
 };
 

@@ -14,6 +14,8 @@ packages:
   #   file: water-monitor-mprls.yaml
   #   refresh: 0d
 
+  - !include common/esp_common_core.yaml
+
 external_components:
   - source:
       # type: git
