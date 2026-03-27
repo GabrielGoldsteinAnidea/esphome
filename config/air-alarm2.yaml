@@ -193,10 +193,7 @@ switch:
     on_turn_on:
       then:
         # - rtttl.play: "alert 1:d=16,o=5,b=120:e6"
-        - light.turn_on: dotstar_light
-        - light.turn_on:
-            id: dotstar_light
-            effect: Rainbow
+        - script.execute: dotstar_pressure_mode
 number:
   - platform: template
     id: light_brightness
@@ -207,6 +204,80 @@ number:
     step: 0.01
     initial_value: 0.5
     restore_value: true
+    set_action:
+      - if:
+          condition:
+            switch.is_on: auto_dotstar
+          then:
+            - script.execute: dotstar_pressure_mode
+          else:
+            - light.turn_on:
+                id: dotstar_light
+                transition_length: 0ms
+                brightness: !lambda "return x;"
+
+script:
+  - id: dotstar_pressure_mode
+    mode: restart
+    then:
+      - lambda: |-
+          auto call = id(dotstar_light).turn_on();
+          call.set_transition_length(0);
+          call.set_brightness(id(light_brightness).state);
+          call.set_effect("None");
+          call.perform();
+
+          auto *output = static_cast<esphome::light::AddressableLight *>(id(dotstar_light)->get_output());
+          for (int i = 0; i < 5; i++) {
+            (*output)[i] = Color(0, 0, 0);
+          }
+
+          const float pressure = id(_ens220_pressure).state;
+          if (isnan(pressure) || isinf(pressure)) {
+            output->schedule_show();
+            return;
+          }
+
+          if (fabsf(pressure) < 1.0f) {
+            (*output)[2] = Color(255, 0, 0);
+            output->schedule_show();
+            return;
+          }
+
+          float magnitude = fabsf(pressure);
+          if (magnitude > 10.0f) {
+            magnitude = 10.0f;
+          }
+          float level = ((magnitude - 1.0f) / 9.0f) * 3.0f;
+          if (level < 0.0f) {
+            level = 0.0f;
+          }
+
+          const int indices_negative[3] = {2, 1, 0};
+          const int indices_positive[3] = {2, 3, 4};
+          const int *indices = pressure < 0.0f ? indices_negative : indices_positive;
+
+          for (int i = 0; i < 3; i++) {
+            float amount = level - i;
+            if (amount < 0.0f) {
+              amount = 0.0f;
+            } else if (amount > 1.0f) {
+              amount = 1.0f;
+            }
+            const uint8_t green = static_cast<uint8_t>(roundf(amount * 255.0f));
+            (*output)[indices[i]] = Color(0, green, 0);
+          }
+
+          output->schedule_show();
+
+interval:
+  - interval: 200ms
+    then:
+      - if:
+          condition:
+            switch.is_on: auto_dotstar
+          then:
+            - script.execute: dotstar_pressure_mode
 
 sensor:
   - platform: aht10
