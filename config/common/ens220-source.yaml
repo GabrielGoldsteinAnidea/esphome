@@ -1,0 +1,16 @@
+packages:
+  ens220:
+    url: https://github.com/midnight-security/esphome-ens220
+    username: gghomeassistant
+    password: !secret github_token
+    file: air-alarm-ens220.yaml
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/midnight-security/esphome-ens220
+      username: gghomeassistant
+      password: !secret github_token
+    components:
+      - ens220
+    refresh: always
