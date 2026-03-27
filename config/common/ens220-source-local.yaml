@@ -1,0 +1,10 @@
+packages:
+  - !include ../external_components/esphome-ens220/air-alarm-ens220.yaml
+
+external_components:
+  - source:
+      type: local
+      path: external_components/esphome-ens220/components
+    components:
+      - ens220
+    refresh: always
