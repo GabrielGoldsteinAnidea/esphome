@@ -13,15 +13,15 @@ esphome:
 
 # for firmware updating if the name changes.
 # wifi:
-   # use_address: air-alarm1.local
+  # use_address: air-alarm1.local
 
 esp32:
   board: adafruit_funhouse_esp32s2
   framework:
-    type: esp-idf
+    # type: esp-idf
     #    version: 5.4.2
     #    platform_version: 6.3.2
-    # type: arduino
+    type: arduino
     # version: 2.0.9
     # platform_version: 5.4.0
 
@@ -152,10 +152,11 @@ light:
     restore_mode: RESTORE_DEFAULT_ON
   - platform: spi_led_strip
     id: dotstar_light
+    internal: true
     spi_id: spi_led
     data_rate: 40MHz
-    name: APA102 LEDs
-    restore_mode: RESTORE_DEFAULT_OFF
+    name: "APA102 LEDs"
+    restore_mode: RESTORE_DEFAULT_ON
     num_leds: 5
     effects:
       - addressable_flicker:
@@ -197,7 +198,7 @@ switch:
 number:
   - platform: template
     id: light_brightness
-    name: Auto Light Brightness
+    name: DotStar Brightness
     optimistic: true
     min_value: 0
     max_value: 1
@@ -365,5 +366,5 @@ display:
           it.printf(it.get_width() / 2, vert_center + vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::TOP_CENTER, "%.1f%%", id(aht20_humidity).state);
 
 packages:
-  - !include common/esp_common_core.yaml
   - !include common/air-alarm-common.yaml
+  - !include common/esp_common_core.yaml

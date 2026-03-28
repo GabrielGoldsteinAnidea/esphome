@@ -147,3 +147,4 @@ api-docs/
 dependencies.lock
 esp-idf-test/
 sdkconfig
+esp-idf-v5.5.1.zip
