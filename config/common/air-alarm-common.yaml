@@ -23,12 +23,29 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+esphome:
+  includes:
+    - common/sntp_smooth.h   # brings esp_sntp.h into lambda scope
+  on_boot:
+    priority: -100   # after network and SNTP init
+    then:
+      - lambda: |-
+          // Use smooth mode so corrections are applied as a slow drift rate
+          // rather than an instant jump, which would corrupt the derivative
+          // calculation in the ENS220 event detection algorithm.
+          #ifdef USE_ESP32
+          esp_sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
+          #endif
+
 time:
   - platform: homeassistant
     id: esptime
     timezone: EST+5EDT,M3.2.0/2,M11.1.0/2
   - platform: sntp
     id: sntp_time
+    servers:
+      - homeassistant.mgmt    # local HA/Chrony server for better accuracy than pool
+    update_interval: 30s      # was 15min default; limits inter-sync drift
 
 binary_sensor:
   - platform: status

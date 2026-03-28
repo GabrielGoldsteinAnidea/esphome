@@ -25,6 +25,7 @@ logger:
 i2c:
   sda: GPIO22
   scl: GPIO20
+  frequency: 400kHz
 
 switch:
   - platform: gpio

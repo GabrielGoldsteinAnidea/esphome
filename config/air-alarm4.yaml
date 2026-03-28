@@ -25,6 +25,7 @@ logger:
 i2c:
   sda: GPIO22
   scl: GPIO20
+  frequency: 400kHz
 
 switch:
   - platform: gpio
@@ -45,19 +46,6 @@ output:
   - platform: gpio
     id: red_light
     pin: GPIO13
-
-interval:
-  - interval: 1s
-    then:
-      if:
-        condition:
-          wifi.connected:
-        then:
-          - output.turn_on: red_light
-          - delay: 500ms
-          - output.turn_off: red_light
-        else:
-          - output.turn_off: red_light
 
 packages:
   - !include common/esp_common_core.yaml

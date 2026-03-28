@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m esphome config air-alarm1.yaml)",
+      "Bash(python -m esphome config --help)",
+      "Bash(find c:/Work/esphome -type d -name esp-idf*)",
+      "Bash(grep -n \"sync_interval\\\\|get_update_interval\" c:/Work/esphome/esphome/components/sntp/*.cpp)",
+      "Bash(python -m esphome clean --help)",
+      "WebSearch",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Bash(python -m esphome config $f)",
+      "Bash(done)"
+    ]
+  }
+}
