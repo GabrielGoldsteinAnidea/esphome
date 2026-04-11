@@ -1,0 +1,28 @@
+# Discovery-phase helper — include TEMPORARILY when first flashing a new unit.
+#
+# Usage:
+#   1. Add to the per-device YAML's packages list before first USB flash:
+#        - !include common/air-alarm-provision.yaml
+#   2. Flash via USB. Device appears in HA as "air-alarm-<last3mac>" (e.g. air-alarm-a1b2c3).
+#   3. Note the MAC address from the "MAC Address" entity or serial log.
+#   4. Remove this include and set the final name/device_num/location_name substitutions.
+#   5. OTA reflash. HA renames entities automatically (same unique_id, new device name).
+#
+# Note: name_add_mac_suffix overrides the false set in the per-device esphome block
+# because packages are merged after the top-level keys. Verify with:
+#   esphome config air-alarm1.yaml | grep name_add_mac_suffix
+
+esphome:
+  name_add_mac_suffix: true
+
+text_sensor:
+  - platform: wifi_info
+    mac_address:
+      name: "MAC Address"
+      entity_category: diagnostic
+    ip_address:
+      name: "IP Address"
+      entity_category: diagnostic
+    ssid:
+      name: "Connected SSID"
+      entity_category: diagnostic

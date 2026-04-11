@@ -1,0 +1,444 @@
+# Platform package for Adafruit Funhouse (ESP32-S2, Arduino framework)
+# Thanks to https://github.com/kbx81/esphome-configs/blob/main/dev/esp-funhouse.yaml
+#
+# Required substitutions (defined in per-device YAML):
+#   name, friendly_name, device_num, location_name
+
+esphome:
+  platformio_options:
+    board_build.mcu: esp32s2
+    board_build.variant: esp32s2
+    board_build.f_cpu: 240000000
+
+esp32:
+  board: adafruit_funhouse_esp32s2
+  framework:
+    type: arduino
+
+psram:
+  speed: 80MHz
+
+logger:
+  level: INFO
+  hardware_uart: USB_CDC
+  logs:
+    sensor: INFO
+    i2c.idf: WARN
+    ens220: INFO
+    graph: WARN
+    ledc: WARN
+    st7789v: WARN
+
+i2c:
+  id: i2c_bus
+  frequency: 400kHz
+  scl: 33
+  sda: 34
+
+spi:
+  - id: spi_lcd
+    clk_pin: 36
+    mosi_pin: 35
+  - id: spi_led
+    clk_pin: 15
+    mosi_pin: 14
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto_large
+    size: 64
+  - file: "gfonts://Roboto"
+    id: roboto_med
+    size: 28
+  - file: "gfonts://Roboto"
+    id: roboto_metric
+    size: 22
+  - file: "gfonts://Roboto"
+    id: roboto_small
+    size: 12
+
+binary_sensor:
+  - platform: gpio
+    id: button_input_0
+    name: Button Up
+    pin:
+      number: 5
+  - platform: gpio
+    id: button_input_1
+    name: Button Select
+    pin:
+      number: 4
+    on_press:
+      - display.page.show: page1
+  - platform: gpio
+    id: button_input_2
+    name: Button Down
+    pin:
+      number: 3
+    on_press:
+      - display.page.show: page2
+  - platform: gpio
+    id: button_input_back
+    name: Button 0
+    pin:
+      number: 0
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_press:
+      - light.toggle: dotstar_light
+
+color:
+  - id: color_heavy_blue
+    red: 39.2%
+    green: 58.4%
+    blue: 92.9%
+  - id: color_cool_purple
+    red: 50.2%
+    green: 0%
+    blue: 50.2%
+  - id: color_sea_green
+    red: 18.0%
+    green: 54.5%
+    blue: 34.1%
+  - id: color_red
+    red: 100%
+    green: 0%
+    blue: 0%
+  - id: color_yellow
+    red: 100%
+    green: 100%
+    blue: 0%
+  - id: color_green
+    red: 0%
+    green: 100%
+    blue: 0%
+  - id: color_blue
+    red: 0%
+    green: 0%
+    blue: 100%
+  - id: color_gray
+    red: 60%
+    green: 60%
+    blue: 60%
+  - id: color_white
+    red: 100%
+    green: 100%
+    blue: 100%
+  - id: elec_cost_color
+    red: 100%
+    green: 0%
+    blue: 100%
+
+light:
+  - platform: monochromatic
+    id: lcd_backlight
+    name: Display Backlight
+    output: lcd_backlight_pwm
+    restore_mode: RESTORE_DEFAULT_ON
+  - platform: spi_led_strip
+    id: dotstar_light
+    internal: true
+    spi_id: spi_led
+    data_rate: 40MHz
+    name: "APA102 LEDs"
+    restore_mode: RESTORE_DEFAULT_ON
+    num_leds: 5
+    effects:
+      - addressable_flicker:
+      - addressable_color_wipe:
+      - addressable_rainbow:
+      - addressable_scan:
+      - addressable_twinkle:
+      - addressable_random_twinkle:
+      - addressable_fireworks:
+
+output:
+  - platform: ledc
+    id: lcd_backlight_pwm
+    pin: 21
+    channel: 0
+  # Buzzer output
+  - platform: ledc
+    id: rtttl_out
+    pin: 42
+    channel: 2
+  - platform: gpio
+    id: red_light
+    pin: GPIO37
+
+switch:
+  - platform: template
+    id: auto_dotstar
+    name: Auto Light Color
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_off:
+      then:
+        - light.turn_off: dotstar_light
+    on_turn_on:
+      then:
+        - script.execute: dotstar_pressure_mode
+
+number:
+  - platform: template
+    id: light_brightness
+    name: DotStar Brightness
+    optimistic: true
+    min_value: 0
+    max_value: 1
+    step: 0.01
+    initial_value: 0.5
+    restore_value: true
+    set_action:
+      - if:
+          condition:
+            switch.is_on: auto_dotstar
+          then:
+            - script.execute: dotstar_pressure_mode
+          else:
+            - light.turn_on:
+                id: dotstar_light
+                transition_length: 0ms
+                brightness: !lambda "return x;"
+
+script:
+  - id: dotstar_pressure_mode
+    mode: restart
+    then:
+      - lambda: |-
+          auto call = id(dotstar_light).turn_on();
+          call.set_transition_length(0);
+          call.set_brightness(id(light_brightness).state);
+          call.set_effect("None");
+          call.perform();
+
+          auto *output = static_cast<esphome::light::AddressableLight *>(id(dotstar_light)->get_output());
+          for (int i = 0; i < 5; i++) {
+            (*output)[i] = Color(0, 0, 0);
+          }
+
+          const float pressure = id(_ens220_pressure).state;
+          if (isnan(pressure) || isinf(pressure)) {
+            output->schedule_show();
+            return;
+          }
+
+          if (fabsf(pressure) < 1.0f) {
+            (*output)[2] = Color(255, 0, 0);
+            output->schedule_show();
+            return;
+          }
+
+          float magnitude = fabsf(pressure);
+          if (magnitude > 10.0f) {
+            magnitude = 10.0f;
+          }
+          float level = ((magnitude - 1.0f) / 9.0f) * 3.0f;
+          if (level < 0.0f) {
+            level = 0.0f;
+          }
+
+          const int indices_negative[3] = {2, 1, 0};
+          const int indices_positive[3] = {2, 3, 4};
+          const int *indices = pressure < 0.0f ? indices_negative : indices_positive;
+
+          for (int i = 0; i < 3; i++) {
+            float amount = level - i;
+            if (amount < 0.0f) {
+              amount = 0.0f;
+            } else if (amount > 1.0f) {
+              amount = 1.0f;
+            }
+            const uint8_t green = static_cast<uint8_t>(roundf(amount * 255.0f));
+            (*output)[indices[i]] = Color(0, green, 0);
+          }
+
+          output->schedule_show();
+
+  # Called by air-alarm-identity.yaml provision service and mqtt.on_connect.
+  # Publishes HA MQTT discovery for Funhouse sensors, then delegates ENS220 sensors.
+  - id: publish_mqtt_discovery
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(g_provisioned)) return;
+
+          auto get_mac = []() -> std::string {
+            std::string raw = esphome::network::get_mac_address();
+            std::string mac;
+            mac.reserve(12);
+            for (char c : raw) { if (c != ':') mac += c; }
+            return mac;
+          };
+          auto sanitize = [](const std::string &s) -> std::string {
+            std::string r = s;
+            std::replace(r.begin(), r.end(), '-', '_');
+            return r;
+          };
+
+          std::string mac        = get_mac();
+          std::string dev_id     = id(g_device_id);
+          std::string dev_num    = str_sprintf("%d", id(g_device_num));
+          std::string obj_prefix = sanitize(dev_id) + "_" + dev_num;
+          std::string full_name  = dev_id + "-" + dev_num;
+          std::string state_base = "esphome/" + full_name;
+          std::string dev_json   =
+            "\"device\":{\"identifiers\":[\"" + mac + "\"],"
+            "\"name\":\"" + full_name + "\","
+            "\"manufacturer\":\"ESPHome\"}";
+
+          auto publish_sensor = [&](
+              const std::string &key,
+              const std::string &name,
+              const std::string &unit,
+              const std::string &device_class,
+              const std::string &state_class) {
+            std::string payload =
+              "{\"name\":\"" + name + "\","
+              "\"object_id\":\"" + obj_prefix + "_" + key + "\","
+              "\"state_topic\":\"" + state_base + "/" + key + "\","
+              "\"unique_id\":\"" + mac + "_" + key + "\","
+              "\"unit_of_measurement\":\"" + unit + "\","
+              + (device_class.empty() ? "" : "\"device_class\":\"" + device_class + "\",")
+              + "\"state_class\":\"" + state_class + "\","
+              + dev_json + "}";
+            id(mqtt_component)->publish(
+              "homeassistant/sensor/" + mac + "_" + key + "/config",
+              payload, 0, true);
+          };
+
+          publish_sensor("temperature",        "Temperature",         "°C",  "temperature",          "measurement");
+          publish_sensor("humidity",            "Humidity",            "%",   "humidity",             "measurement");
+          publish_sensor("barometric_pressure", "Barometric Pressure", "hPa", "atmospheric_pressure", "measurement");
+
+          ESP_LOGI("provision", "Funhouse MQTT discovery published for %s", full_name.c_str());
+      - script.execute: publish_ens220_discovery
+
+interval:
+  - interval: 200ms
+    then:
+      - if:
+          condition:
+            switch.is_on: auto_dotstar
+          then:
+            - script.execute: dotstar_pressure_mode
+
+sensor:
+  - platform: aht10
+    temperature:
+      id: aht20_temperature
+      name: Temperature
+      internal: true
+      filters:
+        - offset: -2.0
+      on_value:
+        then:
+          - if:
+              condition:
+                lambda: 'return id(g_provisioned);'
+              then:
+                - mqtt.publish:
+                    topic: !lambda |-
+                      return "esphome/" + id(g_device_id) + "-" + str_sprintf("%d", id(g_device_num)) + "/temperature";
+                    payload: !lambda 'return str_sprintf("%.2f", x);'
+    humidity:
+      id: aht20_humidity
+      name: Humidity
+      internal: true
+      on_value:
+        then:
+          - if:
+              condition:
+                lambda: 'return id(g_provisioned);'
+              then:
+                - mqtt.publish:
+                    topic: !lambda |-
+                      return "esphome/" + id(g_device_id) + "-" + str_sprintf("%d", id(g_device_num)) + "/humidity";
+                    payload: !lambda 'return str_sprintf("%.2f", x);'
+    update_interval: 30s
+  - platform: dps310
+    temperature:
+      id: dps310_temperature
+      name: Ambient Temperature
+      internal: true
+      unit_of_measurement: °C
+      filters:
+        - offset: -2.6
+    pressure:
+      unit_of_measurement: hPa
+      id: dps310_pressure
+      name: Barometric Pressure
+      internal: true
+      accuracy_decimals: 3
+      on_value:
+        then:
+          - if:
+              condition:
+                lambda: 'return id(g_provisioned);'
+              then:
+                - mqtt.publish:
+                    topic: !lambda |-
+                      return "esphome/" + id(g_device_id) + "-" + str_sprintf("%d", id(g_device_num)) + "/barometric_pressure";
+                    payload: !lambda 'return str_sprintf("%.3f", x);'
+    update_interval: 30s
+
+graph:
+  - id: temperature_graph
+    sensor: dps310_temperature
+    duration: 1h
+    border: False
+    color: color_heavy_blue
+    width: 150
+    height: 50
+  - id: pressure_graph
+    sensor: _ens220_pressure
+    duration: 10s
+    border: False
+    color: color_cool_purple
+    width: 150
+    height: 50
+    max_range: 1
+
+display:
+  - platform: st7789v
+    id: main_lcd
+    spi_id: spi_lcd
+    model: Adafruit Funhouse 240x240
+    rotation: 180
+    data_rate: 80MHz
+    # eightbitcolor: true
+    # cs_pin: 40
+    # dc_pin: 39
+    # reset_pin: 41
+    update_interval: 1s
+    pages:
+      - id: page1
+        lambda: |-
+          const uint8_t header_height = 20;
+          const uint8_t vert_spacing_offset = 45;
+          const uint8_t vert_center = ((it.get_height() - header_height) / 2) + header_height;
+          auto logo_color = id(conn_status).state ? id(color_gray) : id(color_red);
+          it.strftime(6, 6, id(roboto_small), id(color_gray), TextAlign::TOP_LEFT, "%Y-%m-%d", id(esptime).now());
+          it.strftime((it.get_width() - 6), 6, id(roboto_small), id(color_gray), TextAlign::TOP_RIGHT, "%H:%M:%S", id(esptime).now());
+          it.print(it.get_width() / 2, 6, id(roboto_small), logo_color, TextAlign::TOP_CENTER, "ESPHome");
+          it.graph(90, 40, id(temperature_graph));
+          it.graph(90, 160, id(pressure_graph));
+          it.printf(40, 70, id(roboto_metric), id(color_heavy_blue), TextAlign::CENTER, "%.1f°", id(aht20_temperature).state * 1.8 + 32);
+          it.printf(40, 130, id(roboto_metric), id(color_sea_green), TextAlign::CENTER, "%.1f%%", id(aht20_humidity).state);
+          it.printf(40, 190, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "%.1f", id(_ens220_pressure).state);
+          it.printf(40, 220, id(roboto_metric), id(color_cool_purple), TextAlign::CENTER, "nhPa");
+
+      - id: page2
+        lambda: |-
+          const uint8_t header_height = 20;
+          const uint8_t vert_spacing_offset = 45;
+          const uint8_t vert_center = ((it.get_height() - header_height) / 2) + header_height;
+          auto logo_color = id(conn_status).state ? id(color_gray) : id(color_red);
+          it.strftime(6, 6, id(roboto_small), id(color_gray), TextAlign::TOP_LEFT, "%Y-%m-%d", id(esptime).now());
+          it.strftime((it.get_width() - 6), 6, id(roboto_small), id(color_gray), TextAlign::TOP_RIGHT, "%H:%M:%S", id(esptime).now());
+          it.print(it.get_width() / 2, 6, id(roboto_small), logo_color, TextAlign::TOP_CENTER, "ESPHome");
+          it.printf(it.get_width() / 2, vert_center - vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::BOTTOM_CENTER, "%.1f hPa", id(_ens220_pressure).state);
+          it.printf(it.get_width() / 2, vert_center, id(roboto_large), id(color_white), TextAlign::CENTER, "%.1f°", id(aht20_temperature).state * 1.8 + 32);
+          it.printf(it.get_width() / 2, vert_center + vert_spacing_offset, id(roboto_med), id(color_gray), TextAlign::TOP_CENTER, "%.1f%%", id(aht20_humidity).state);

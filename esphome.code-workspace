@@ -5,24 +5,22 @@
 		}
 	],
 	"settings": {
-		"python.defaultInterpreterPath": "${workspaceFolder}\\venv\\Scripts\\python.exe",
-		"python.pythonPath": "${workspaceFolder}\\venv\\Scripts\\python.exe",
 		"files.associations": {
-			"*.yaml": "yaml",
+			"*.yaml": "esphome",
+			"istream": "cpp",
+			"ostream": "cpp",
 			"array": "cpp",
-			"deque": "cpp",
-			"forward_list": "cpp",
-			"list": "cpp",
 			"string": "cpp",
-			"unordered_map": "cpp",
-			"unordered_set": "cpp",
-			"vector": "cpp",
 			"string_view": "cpp",
-			"memory": "cpp",
-			"random": "cpp",
-			"ranges": "cpp",
 			"span": "cpp",
-			"regex": "cpp"
-		}
+			"algorithm": "cpp",
+			"mutex": "cpp",
+			"stop_token": "cpp",
+			"chrono": "cpp",
+			"text_encoding": "cpp",
+			"typeinfo": "cpp",
+			"cstdint": "cpp"
+		},
+		"esphome.dashboardUri": "localhost:6052"
 	}
 }

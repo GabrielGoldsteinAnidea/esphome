@@ -1,52 +1,14 @@
-substitutions:
-  name: air-alarm-4
-  friendly_name: air-alarm-4
+# Adafruit Feather ESP32 v2 — flash this same binary to units 3 and 4.
+# Identity (device_id, device_num, location) is set at runtime via the
+# esphome.<mac-name>.provision service call from HA Developer Tools.
 
 esphome:
-  name: ${name}
-  friendly_name: ${friendly_name}
-  name_add_mac_suffix: false
-
-esp32:
-  board: adafruit_feather_esp32_v2
-  framework:
-    type: esp-idf
-
-# Enable logging
-logger:
-  level: INFO
-  logs:
-    sensor: INFO
-    i2c.idf: WARN
-    ens220: INFO
-    graph: WARN
-    ledc: WARN
-
-i2c:
-  sda: GPIO22
-  scl: GPIO20
-  frequency: 400kHz
-
-switch:
-  - platform: gpio
-    id: neopixel_i2c_power
-    name: "NeoPixel I2C Power"
-    pin: GPIO2
-    restore_mode: ALWAYS_ON
-
-light:
-  - platform: esp32_rmt_led_strip
-    rgb_order: GRB
-    chipset: WS2812
-    pin: 0
-    num_leds: 1
-    name: "NeoPixel Light"
-
-output:
-  - platform: gpio
-    id: red_light
-    pin: GPIO13
+  name: air-alarm
+  friendly_name: Air Alarm
+  name_add_mac_suffix: true
 
 packages:
-  - !include common/esp_common_core.yaml
+  - !include common/air-alarm-feather.yaml
   - !include common/air-alarm-common.yaml
+  - !include common/esp_common_core.yaml
+  - !include common/air-alarm-identity.yaml

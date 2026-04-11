@@ -1,0 +1,98 @@
+# Provisioning identity package — always included in every air-alarm device YAML.
+#
+# Lifecycle:
+#   1. First boot: g_provisioned = false, no MQTT discovery published, no sensor data sent.
+#   2. User calls esphome.<device>.provision from HA Developer Tools with device_id, device_num, location.
+#   3. Values stored in NVS (survive reboot). publish_mqtt_discovery script fires.
+#   4. Sensors appear in HA as sensor.<device_id_sanitized>_<device_num>_<sensor>.
+#   5. On every subsequent boot, MQTT on_connect re-publishes discovery automatically.
+#
+# publish_mqtt_discovery script must be provided by the platform package (funhouse/feather).
+
+globals:
+  - id: g_provisioned
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+
+  - id: g_device_id
+    type: std::string
+    restore_value: true
+    initial_value: '""'
+
+  - id: g_device_num
+    type: int
+    restore_value: true
+    initial_value: '0'
+
+  - id: g_location_name
+    type: std::string
+    restore_value: true
+    initial_value: '""'
+
+text_sensor:
+  - platform: template
+    name: "Location"
+    id: location_sensor
+    entity_category: diagnostic
+    update_interval: never
+    lambda: 'return id(g_location_name);'
+
+api:
+  services:
+    - service: provision
+      variables:
+        device_id: string    # e.g. "air-alarm" — base name, combined with device_num for entity IDs
+        device_num: int      # e.g. 1 — numeric unit identifier
+        location: string     # e.g. "living-room"
+      then:
+        - globals.set:
+            id: g_device_id
+            value: !lambda 'return device_id;'
+        - globals.set:
+            id: g_device_num
+            value: !lambda 'return device_num;'
+        - globals.set:
+            id: g_location_name
+            value: !lambda 'return location;'
+        - globals.set:
+            id: g_provisioned
+            value: 'true'
+        - component.update: location_sensor
+        - script.execute: publish_mqtt_discovery
+        - logger.log:
+            level: INFO
+            format: "Provisioned: id=%s num=%d location=%s"
+            args: ['id(g_device_id).c_str()', 'id(g_device_num)', 'id(g_location_name).c_str()']
+
+    - service: set_location
+      variables:
+        location: string
+      then:
+        - globals.set:
+            id: g_location_name
+            value: !lambda 'return location;'
+        - component.update: location_sensor
+        - logger.log:
+            level: INFO
+            format: "Location updated to: %s"
+            args: ['id(g_location_name).c_str()']
+
+    - service: deprovision
+      then:
+        - globals.set:
+            id: g_provisioned
+            value: 'false'
+        - globals.set:
+            id: g_device_id
+            value: '""'
+        - globals.set:
+            id: g_device_num
+            value: '0'
+        - globals.set:
+            id: g_location_name
+            value: '""'
+        - component.update: location_sensor
+        - logger.log:
+            level: WARN
+            format: "Device deprovisioned — reboot to clear MQTT discovery from HA"

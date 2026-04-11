@@ -1,0 +1,47 @@
+# Platform package for Adafruit Feather ESP32 v2 (ESP-IDF framework)
+#
+# publish_mqtt_discovery delegates entirely to publish_ens220_discovery since
+# the Feather has no onboard temperature/humidity/pressure sensors.
+
+esp32:
+  board: adafruit_feather_esp32_v2
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+  logs:
+    sensor: INFO
+    i2c.idf: WARN
+    ens220: INFO
+
+i2c:
+  sda: GPIO22
+  scl: GPIO20
+  frequency: 400kHz
+
+switch:
+  - platform: gpio
+    id: neopixel_i2c_power
+    name: "NeoPixel I2C Power"
+    pin: GPIO2
+    restore_mode: ALWAYS_ON
+
+light:
+  - platform: esp32_rmt_led_strip
+    rgb_order: GRB
+    chipset: WS2812
+    pin: 0
+    num_leds: 1
+    name: "Status Light"
+
+output:
+  - platform: gpio
+    id: red_light
+    pin: GPIO13
+
+script:
+  - id: publish_mqtt_discovery
+    mode: single
+    then:
+      - script.execute: publish_ens220_discovery
