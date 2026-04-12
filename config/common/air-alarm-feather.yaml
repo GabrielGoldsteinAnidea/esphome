@@ -29,6 +29,7 @@ switch:
 
 light:
   - platform: esp32_rmt_led_strip
+    id: status_light
     rgb_order: GRB
     chipset: WS2812
     pin: 0
@@ -40,8 +41,43 @@ output:
     id: red_light
     pin: GPIO13
 
+esphome:
+  on_boot:
+    priority: -100   # after NVS globals are restored
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(g_provisioned);'
+          then:
+            - light.turn_on:
+                id: status_light
+                red: 1.0
+                green: 0.45
+                blue: 0.0
+                brightness: 0.5
+                transition_length: 0s
+
+interval:
+  # Restore orange after any event flash clears it, while unprovisioned.
+  - interval: 2s
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(g_provisioned);'
+          then:
+            - light.turn_on:
+                id: status_light
+                red: 1.0
+                green: 0.45
+                blue: 0.0
+                brightness: 0.5
+                transition_length: 0s
+
 script:
   - id: publish_mqtt_discovery
     mode: single
     then:
+      - light.turn_off:       # clear the unprovisioned orange indicator
+          id: status_light
+          transition_length: 0s
       - script.execute: publish_ens220_discovery

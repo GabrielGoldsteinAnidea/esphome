@@ -8,7 +8,7 @@ esphome:
   name_add_mac_suffix: true
 
 packages:
-  - !include common/air-alarm-funhouse.yaml
+  - !include common/air-alarm-feather.yaml
   - !include common/air-alarm-common.yaml
   - !include common/esp_common_core.yaml
   - !include common/air-alarm-identity.yaml

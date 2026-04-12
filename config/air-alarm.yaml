@@ -1,4 +1,4 @@
-# Adafruit Funhouse (ESP32-S2) — flash this same binary to units 1 and 2.
+# Adafruit Feather ESP32 v2 — flash this binary to all air-alarm units.
 # Identity (device_id, device_num, location) is set at runtime via the
 # esphome.<mac-name>.provision service call from HA Developer Tools.
 
