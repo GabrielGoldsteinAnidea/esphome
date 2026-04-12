@@ -24,18 +24,26 @@ ota:
     password: !secret wifi_password_ths
     on_begin:
       then:
-        - globals.set:
-            id: g_led_state
-            value: '3'
-        - script.execute: led_refresh
+        - lambda: |-
+            // script.execute is async and never runs once OTA takes the main loop.
+            // Drive the light directly so purple appears before the loop is blocked.
+            id(g_led_state) = 3;
+            auto call = id(status_light).make_call();
+            call.set_red(0.6f); call.set_green(0.0f); call.set_blue(1.0f);
+            call.set_brightness(0.5f); call.set_state(true);
+            call.set_transition_length(0);
+            call.perform();
   - platform: http_request
     id: ota_http_request
     on_begin:
       then:
-        - globals.set:
-            id: g_led_state
-            value: '3'
-        - script.execute: led_refresh
+        - lambda: |-
+            id(g_led_state) = 3;
+            auto call = id(status_light).make_call();
+            call.set_red(0.6f); call.set_green(0.0f); call.set_blue(1.0f);
+            call.set_brightness(0.5f); call.set_state(true);
+            call.set_transition_length(0);
+            call.perform();
 
 button:
   - platform: template
