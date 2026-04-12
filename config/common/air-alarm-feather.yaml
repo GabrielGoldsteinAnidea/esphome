@@ -58,7 +58,7 @@ esphome:
                 transition_length: 0s
 
 interval:
-  # Restore orange after any event flash clears it, while unprovisioned.
+  # Maintain idle state: orange when unprovisioned, cyan when provisioned + online.
   - interval: 2s
     then:
       - if:
@@ -72,12 +72,85 @@ interval:
                 blue: 0.0
                 brightness: 0.5
                 transition_length: 0s
+          else:
+            - if:
+                condition:
+                  wifi.connected:
+                then:
+                  - light.turn_on:
+                      id: status_light
+                      red: 0.0
+                      green: 1.0
+                      blue: 1.0
+                      brightness: 0.5
+                      transition_length: 500ms
 
 script:
+  # Single-shot event flashes. mode: single drops re-triggers while running,
+  # preventing rapid repeat flashes when the event value stays non-zero over
+  # multiple 64ms update cycles. Restores idle colour immediately after.
+  - id: event_flash_green
+    mode: single
+    then:
+      - light.turn_on:
+          id: status_light
+          red: 0.0
+          green: 1.0
+          blue: 0.0
+          brightness: 0.5
+          transition_length: 0s
+      - delay: 300ms
+      - if:
+          condition:
+            lambda: 'return id(g_provisioned) && id(conn_status).state;'
+          then:
+            - light.turn_on:
+                id: status_light
+                red: 0.0
+                green: 1.0
+                blue: 1.0
+                brightness: 0.5
+                transition_length: 0s
+          else:
+            - light.turn_off:
+                id: status_light
+                transition_length: 0s
+
+  - id: event_flash_blue
+    mode: single
+    then:
+      - light.turn_on:
+          id: status_light
+          red: 0.0
+          green: 0.0
+          blue: 1.0
+          brightness: 0.5
+          transition_length: 0s
+      - delay: 300ms
+      - if:
+          condition:
+            lambda: 'return id(g_provisioned) && id(conn_status).state;'
+          then:
+            - light.turn_on:
+                id: status_light
+                red: 0.0
+                green: 1.0
+                blue: 1.0
+                brightness: 0.5
+                transition_length: 0s
+          else:
+            - light.turn_off:
+                id: status_light
+                transition_length: 0s
+
   - id: publish_mqtt_discovery
     mode: single
     then:
-      - light.turn_off:       # clear the unprovisioned orange indicator
+      - light.turn_on:         # switch from orange to cyan on provision
           id: status_light
-          transition_length: 0s
+          red: 0.0
+          green: 1.0
+          blue: 1.0
+          brightness: 0.5
+          transition_length: 500ms
       - script.execute: publish_ens220_discovery

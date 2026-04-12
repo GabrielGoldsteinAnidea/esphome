@@ -33,7 +33,7 @@ Write-Host "Version: $Version" -ForegroundColor Cyan
 # Compile
 Write-Host "Compiling $ConfigFile ..." -ForegroundColor Cyan
 Push-Location $ScriptDir
-esphome compile air-alarm.yaml
+esphome -s firmware_version $Version compile air-alarm.yaml
 $CompileExit = $LASTEXITCODE
 Pop-Location
 

@@ -35,8 +35,33 @@ text_sensor:
     name: "Location"
     id: location_sensor
     entity_category: diagnostic
+    icon: mdi:map-marker
     update_interval: never
     lambda: 'return id(g_location_name);'
+
+  - platform: template
+    name: "Device ID"
+    id: device_id_sensor
+    entity_category: diagnostic
+    icon: mdi:identifier
+    update_interval: never
+    lambda: 'return id(g_device_id);'
+
+  - platform: template
+    name: "Device Number"
+    id: device_num_sensor
+    entity_category: diagnostic
+    icon: mdi:numeric
+    update_interval: never
+    lambda: 'return str_sprintf("%d", id(g_device_num));'
+
+  - platform: template
+    name: "Provisioned"
+    id: provisioned_sensor
+    entity_category: diagnostic
+    icon: mdi:check-circle
+    update_interval: never
+    lambda: 'return id(g_provisioned) ? std::string("Yes") : std::string("No");'
 
 api:
   services:
@@ -59,6 +84,9 @@ api:
             id: g_provisioned
             value: 'true'
         - component.update: location_sensor
+        - component.update: device_id_sensor
+        - component.update: device_num_sensor
+        - component.update: provisioned_sensor
         - script.execute: publish_mqtt_discovery
         - logger.log:
             level: INFO
@@ -73,6 +101,7 @@ api:
             id: g_location_name
             value: !lambda 'return location;'
         - component.update: location_sensor
+        - component.update: provisioned_sensor
         - logger.log:
             level: INFO
             format: "Location updated to: %s"
@@ -93,6 +122,9 @@ api:
             id: g_location_name
             value: '""'
         - component.update: location_sensor
+        - component.update: device_id_sensor
+        - component.update: device_num_sensor
+        - component.update: provisioned_sensor
         - logger.log:
             level: WARN
             format: "Device deprovisioned — reboot to clear MQTT discovery from HA"

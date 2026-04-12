@@ -29,7 +29,7 @@ ota:
             red: 0.6
             green: 0.0
             blue: 1.0
-            brightness: 1.0
+            brightness: 0.5
             transition_length: 0s
   - platform: http_request
     id: ota_http_request
@@ -40,7 +40,7 @@ ota:
             red: 0.6
             green: 0.0
             blue: 1.0
-            brightness: 1.0
+            brightness: 0.5
             transition_length: 0s
 
 button:
