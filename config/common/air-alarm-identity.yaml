@@ -114,6 +114,16 @@ api:
             value: !lambda 'return location;'
         - component.update: location_sensor
         - component.update: provisioned_sensor
+        - if:
+            condition:
+              lambda: 'return id(g_provisioned);'
+            then:
+              - mqtt.publish:
+                  topic: !lambda |-
+                    return "esphome/" + id(g_device_id) + "-"
+                           + str_sprintf("%d", id(g_device_num)) + "/location";
+                  payload: !lambda 'return id(g_location_name);'
+                  retain: true
         - logger.log:
             level: INFO
             format: "Location updated to: %s"
