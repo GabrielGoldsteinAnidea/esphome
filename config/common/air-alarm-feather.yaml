@@ -1,7 +1,13 @@
 # Platform package for Adafruit Feather ESP32 v2 (ESP-IDF framework)
 #
-# publish_mqtt_discovery delegates entirely to publish_ens220_discovery since
-# the Feather has no onboard temperature/humidity/pressure sensors.
+# LED state machine (g_led_state):
+#   0 = IDLE — orange (unprovisioned) or cyan (provisioned + wifi)
+#   1 = EVENT_POSITIVE — green, 300ms burst (door opened / positive pressure)
+#   2 = EVENT_NEGATIVE — blue,  300ms burst (door closed / negative pressure)
+#   3 = OTA — purple (firmware update started, stays until reboot)
+#
+# ALL led changes funnel through led_refresh. Never call light.turn_on
+# directly from other automations — set g_led_state and call led_refresh.
 
 esp32:
   board: adafruit_feather_esp32_v2
@@ -41,116 +47,92 @@ output:
     id: red_light
     pin: GPIO13
 
+globals:
+  - id: g_led_state
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+  # True while an event is active. Prevents repeated flashes on every 64ms
+  # sample during a single door event. Cleared on the falling edge (value=0).
+  - id: g_event_active
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
 esphome:
   on_boot:
     priority: -100   # after NVS globals are restored
     then:
-      - if:
-          condition:
-            lambda: 'return !id(g_provisioned);'
-          then:
-            - light.turn_on:
-                id: status_light
-                red: 1.0
-                green: 0.45
-                blue: 0.0
-                brightness: 0.5
-                transition_length: 0s
+      - script.execute: led_refresh
 
 interval:
-  # Maintain idle state: orange when unprovisioned, cyan when provisioned + online.
+  # Keeps idle colour current (orange/cyan transition as state changes).
+  # Skipped while g_led_state != 0 so it cannot disturb event or OTA colours.
   - interval: 2s
     then:
       - if:
           condition:
-            lambda: 'return !id(g_provisioned);'
+            lambda: 'return id(g_led_state) == 0;'
           then:
-            - light.turn_on:
-                id: status_light
-                red: 1.0
-                green: 0.45
-                blue: 0.0
-                brightness: 0.5
-                transition_length: 0s
-          else:
-            - if:
-                condition:
-                  wifi.connected:
-                then:
-                  - light.turn_on:
-                      id: status_light
-                      red: 0.0
-                      green: 1.0
-                      blue: 1.0
-                      brightness: 0.5
-                      transition_length: 500ms
+            - script.execute: led_refresh
 
 script:
-  # Single-shot event flashes. mode: single drops re-triggers while running,
-  # preventing rapid repeat flashes when the event value stays non-zero over
-  # multiple 64ms update cycles. Restores idle colour immediately after.
-  - id: event_flash_green
-    mode: single
+  # ── Central LED controller ─────────────────────────────────────────────────
+  # Reads g_led_state and applies the correct colour to status_light.
+  # mode: restart lets OTA immediately override any in-progress flash.
+  - id: led_refresh
+    mode: restart
     then:
-      - light.turn_on:
-          id: status_light
-          red: 0.0
-          green: 1.0
-          blue: 0.0
-          brightness: 0.5
-          transition_length: 0s
-      - delay: 300ms
-      - if:
-          condition:
-            lambda: 'return id(g_provisioned) && id(conn_status).state;'
-          then:
-            - light.turn_on:
-                id: status_light
-                red: 0.0
-                green: 1.0
-                blue: 1.0
-                brightness: 0.5
-                transition_length: 0s
-          else:
-            - light.turn_off:
-                id: status_light
-                transition_length: 0s
+      - lambda: |-
+          auto call = id(status_light).make_call();
+          call.set_state(true);
+          call.set_brightness(0.5f);
+          switch (id(g_led_state)) {
+            case 1:  // EVENT_POSITIVE — green (door open)
+              call.set_red(0.0f); call.set_green(1.0f); call.set_blue(0.0f);
+              call.set_transition_length(0);
+              break;
+            case 2:  // EVENT_NEGATIVE — blue (door close)
+              call.set_red(0.0f); call.set_green(0.0f); call.set_blue(1.0f);
+              call.set_transition_length(0);
+              break;
+            case 3:  // OTA — purple
+              call.set_red(0.6f); call.set_green(0.0f); call.set_blue(1.0f);
+              call.set_transition_length(0);
+              break;
+            default:  // 0 = IDLE
+              if (!id(g_provisioned)) {
+                call.set_red(1.0f); call.set_green(0.45f); call.set_blue(0.0f);
+                call.set_transition_length(0);
+              } else {
+                call.set_red(0.0f); call.set_green(1.0f); call.set_blue(1.0f);
+                call.set_transition_length(500);
+              }
+              break;
+          }
+          call.perform();
 
-  - id: event_flash_blue
-    mode: single
+  # ── Event-flash return timer ───────────────────────────────────────────────
+  # Started on every event rising edge. Returns LED to idle after the burst.
+  # mode: restart resets the 300ms window if a second event fires within it.
+  - id: led_event_timer
+    mode: restart
     then:
-      - light.turn_on:
-          id: status_light
-          red: 0.0
-          green: 0.0
-          blue: 1.0
-          brightness: 0.5
-          transition_length: 0s
       - delay: 300ms
-      - if:
-          condition:
-            lambda: 'return id(g_provisioned) && id(conn_status).state;'
-          then:
-            - light.turn_on:
-                id: status_light
-                red: 0.0
-                green: 1.0
-                blue: 1.0
-                brightness: 0.5
-                transition_length: 0s
-          else:
-            - light.turn_off:
-                id: status_light
-                transition_length: 0s
+      - globals.set:
+          id: g_led_state
+          value: '0'
+      - script.execute: led_refresh
 
+  # ── MQTT discovery ─────────────────────────────────────────────────────────
+  # Called by air-alarm-identity.yaml on provision / MQTT reconnect.
+  # Returns LED to idle (cyan for a freshly-provisioned, online device).
   - id: publish_mqtt_discovery
     mode: single
     then:
-      - light.turn_on:         # switch from orange to cyan on provision
-          id: status_light
-          red: 0.0
-          green: 1.0
-          blue: 1.0
-          brightness: 0.5
-          transition_length: 500ms
+      - globals.set:
+          id: g_led_state
+          value: '0'
+      - script.execute: led_refresh
       - script.execute: publish_ens220_discovery

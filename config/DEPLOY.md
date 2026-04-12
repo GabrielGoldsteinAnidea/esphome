@@ -80,6 +80,28 @@ Returns the git-derived version string, e.g. `v1.2.0_3_gabcdef1`.
 
 ---
 
+## Status LED Reference
+
+The NeoPixel on each Feather board shows device state at a glance.
+
+| Colour | Pattern | Meaning |
+|---|---|---|
+| **Orange** | Solid | Unprovisioned — device has no identity yet. Call the `provision` service. |
+| **Cyan** | Solid (fades in) | Idle — provisioned and connected to WiFi/MQTT. Normal operating state. |
+| **Green** | 300ms burst → cyan | Door **opened** (positive pressure spike detected). One flash per event. |
+| **Blue** | 300ms burst → cyan | Door **closed** (negative pressure spike detected). One flash per event. |
+| **Purple** | Solid | OTA firmware update started. Device will reboot when complete. |
+| **Red** | 500ms on / 500ms off | SNTP heartbeat — pulses in sync with wall-clock seconds across all devices. Used to visually verify time synchronisation between units. |
+
+### LED behaviour notes
+
+- The red LED and the NeoPixel are independent: the red LED always runs the SNTP heartbeat when WiFi is connected; the NeoPixel shows the above states.
+- Event flashes are edge-triggered — one flash fires when the pressure event starts, not once per sample. A door event lasting several seconds still produces exactly one coloured burst.
+- The 2-second idle refresh maintains orange/cyan as provisioning or WiFi state changes, but never interrupts an event flash or OTA purple.
+- Orange → cyan transition happens automatically on the `provision` service call; no reboot required.
+
+---
+
 ## Re-provisioning
 
 To change a device's identity, call the provision service again with new values. To fully reset:

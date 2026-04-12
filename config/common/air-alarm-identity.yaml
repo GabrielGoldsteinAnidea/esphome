@@ -63,6 +63,18 @@ text_sensor:
     update_interval: never
     lambda: 'return id(g_provisioned) ? std::string("Yes") : std::string("No");'
 
+esphome:
+  on_boot:
+    # Push NVS-restored provisioning values to HA on every boot.
+    # Without this, text sensors with update_interval: never never publish
+    # their initial state, so HA shows "unknown" until a service call fires.
+    priority: -200   # after feather on_boot (-100) and NVS restore
+    then:
+      - component.update: location_sensor
+      - component.update: device_id_sensor
+      - component.update: device_num_sensor
+      - component.update: provisioned_sensor
+
 api:
   services:
     - service: provision

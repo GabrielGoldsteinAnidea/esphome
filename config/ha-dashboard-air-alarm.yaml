@@ -1,0 +1,68 @@
+# Air Alarm dashboard — paste into a HA dashboard view.
+#
+# Requires HACS: auto-entities (thomasloven/lovelace-auto-entities)
+#
+# Three grouped sections; devices appear automatically via ESPHome integration
+# and MQTT discovery (alarm events). All sections use group_by: device so
+# each physical device's entities are clustered together.
+
+type: vertical-stack
+cards:
+
+  # Firmware version, OTA update button, restart button.
+  - type: custom:auto-entities
+    card:
+      type: entities
+      title: Firmware & Controls
+      show_header_toggle: false
+    card_param: entities
+    filter:
+      include:
+        - integration: esphome
+          entity_id: /air_alarm.*firmware_version/
+        - integration: esphome
+          entity_id: /air_alarm.*update_firmware/
+        - integration: esphome
+          entity_id: /air_alarm.*restart/
+    sort:
+      method: entity_id
+    group_by: device
+
+  # Uptime + MQTT alarm event sensors (alarm_event_activity / alarm_event_time).
+  # MQTT sensors share the same device identifier (MAC), so group_by: device
+  # clusters them alongside the ESPHome uptime sensor for the same unit.
+  - type: custom:auto-entities
+    card:
+      type: entities
+      title: Activity
+      show_header_toggle: false
+    card_param: entities
+    filter:
+      include:
+        - integration: esphome
+          entity_id: /air_alarm.*uptime/
+        - entity_id: /air_alarm.*alarm_event/
+    sort:
+      method: entity_id
+    group_by: device
+
+  # Runtime identity set via the provision service.
+  - type: custom:auto-entities
+    card:
+      type: entities
+      title: Provisioning
+      show_header_toggle: false
+    card_param: entities
+    filter:
+      include:
+        - integration: esphome
+          entity_id: /air_alarm.*_location/
+        - integration: esphome
+          entity_id: /air_alarm.*_device_id/
+        - integration: esphome
+          entity_id: /air_alarm.*_device_num/
+        - integration: esphome
+          entity_id: /air_alarm.*_provisioned/
+    sort:
+      method: entity_id
+    group_by: device
