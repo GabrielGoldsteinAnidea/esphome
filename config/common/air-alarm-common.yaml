@@ -87,6 +87,14 @@ globals:
     restore_value: false
     initial_value: 'false'
 
+  # millis() of the last successful SNTP sync. Used by the watchdog interval
+  # to detect sync failure and clear g_sntp_synced if 120s elapse without
+  # a successful sync (4× the 30s update_interval).
+  - id: g_sntp_last_sync_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
 time:
   - platform: homeassistant
     id: esptime
@@ -101,6 +109,12 @@ time:
         - globals.set:
             id: g_sntp_synced
             value: 'true'
+        - lambda: |-
+            id(g_sntp_last_sync_ms) = millis();
+            if (!id(g_provisioned)) return;
+            std::string topic = "esphome/" + id(g_device_id) + "-"
+                                + str_sprintf("%d", id(g_device_num)) + "/sntp_synced";
+            id(mqtt_component)->publish(topic, std::string("true"), 0, true);
         - logger.log:
             level: INFO
             format: "SNTP time synchronized"
@@ -130,6 +144,22 @@ script:
       - output.turn_off: red_light
 
 interval:
+  # SNTP watchdog — fires every 60s. If 120s have elapsed since the last
+  # successful sync (and we were previously synced), mark as unsynced and
+  # push "false" to the retained MQTT topic so HA sees the failure.
+  # 120s = 4× the 30s update_interval, tolerating one missed sync cycle.
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (!id(g_sntp_synced)) return;
+          if ((millis() - id(g_sntp_last_sync_ms)) < 120000) return;
+          id(g_sntp_synced) = false;
+          ESP_LOGW("sntp", "SNTP sync timeout — no sync in 120s, marking unsynced");
+          if (!id(g_provisioned)) return;
+          std::string topic = "esphome/" + id(g_device_id) + "-"
+                              + str_sprintf("%d", id(g_device_num)) + "/sntp_synced";
+          id(mqtt_component)->publish(topic, std::string("false"), 0, true);
+
   # 1ms poll — only acts on the rising edge of each SNTP second.
   # Accuracy: ±loop_time on the turn-on edge, RTOS-timer accuracy on turn-off.
   - interval: 1ms
