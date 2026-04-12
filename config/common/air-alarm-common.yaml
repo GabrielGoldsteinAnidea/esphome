@@ -20,36 +20,40 @@ http_request:
   useragent: esphome-air-alarm
 
 ota:
+  # Dashboard push OTA: on_begin fires synchronously then OTA blocks the loop.
+  # call.perform() marks the state dirty; loop() forces the actual hardware
+  # write before the loop is taken over, so purple appears immediately.
   - platform: esphome
     password: !secret wifi_password_ths
     on_begin:
       then:
         - lambda: |-
-            // script.execute is async and never runs once OTA takes the main loop.
-            // Drive the light directly so purple appears before the loop is blocked.
             id(g_led_state) = 3;
             auto call = id(status_light).make_call();
             call.set_red(0.6f); call.set_green(0.0f); call.set_blue(1.0f);
             call.set_brightness(0.5f); call.set_state(true);
             call.set_transition_length(0);
             call.perform();
+            id(status_light).loop();
   - platform: http_request
     id: ota_http_request
-    on_begin:
-      then:
-        - lambda: |-
-            id(g_led_state) = 3;
-            auto call = id(status_light).make_call();
-            call.set_red(0.6f); call.set_green(0.0f); call.set_blue(1.0f);
-            call.set_brightness(0.5f); call.set_state(true);
-            call.set_transition_length(0);
-            call.perform();
 
 button:
   - platform: template
     name: "Update Firmware"
     entity_category: diagnostic
     on_press:
+      # Set purple and flush to hardware first, then pause long enough for the
+      # LED strip to visibly show the colour before OTA blocks the main loop.
+      - lambda: |-
+          id(g_led_state) = 3;
+          auto call = id(status_light).make_call();
+          call.set_red(0.6f); call.set_green(0.0f); call.set_blue(1.0f);
+          call.set_brightness(0.5f); call.set_state(true);
+          call.set_transition_length(0);
+          call.perform();
+          id(status_light).loop();
+      - delay: 500ms
       - ota.http_request.flash:
           id: ota_http_request
           url: "http://192.168.4.2:8123/local/esphome/air-alarm.bin"
@@ -77,6 +81,12 @@ mqtt:
           then:
             - script.execute: publish_mqtt_discovery
 
+globals:
+  - id: g_sntp_synced
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
 time:
   - platform: homeassistant
     id: esptime
@@ -88,6 +98,9 @@ time:
     update_interval: 30s      # was 15min default; limits inter-sync drift
     on_time_sync:
       then:
+        - globals.set:
+            id: g_sntp_synced
+            value: 'true'
         - logger.log:
             level: INFO
             format: "SNTP time synchronized"
