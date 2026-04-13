@@ -122,7 +122,7 @@ time:
             id(mqtt_component)->publish(base + "/sntp_synced", std::string("true"), 0, true);
 
             // Publish time_sync immediately on first sync so HA shows a value
-            // without waiting up to 5 minutes for the periodic interval.
+            // without waiting up to 5 minutes for the next :00/:05/... mark.
             if (first_sync) {
               struct timeval tv;
               gettimeofday(&tv, nullptr);
@@ -130,10 +130,29 @@ time:
               strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", gmtime(&tv.tv_sec));
               sprintf(ts + strlen(ts), ".%03ldZ", tv.tv_usec / 1000);
               id(mqtt_component)->publish(base + "/time_sync", std::string(ts), 0, false);
-              ESP_LOGI("sntp", "SNTP first sync — time_sync published: %s", ts);
+              ESP_LOGI("sntp", "SNTP first sync — time_sync: %s", ts);
             } else {
               ESP_LOGI("sntp", "SNTP time synchronized");
             }
+
+    # Publish time_sync at exact 5-minute wall-clock boundaries so all devices
+    # report simultaneously. Compare timestamps across devices to detect drift.
+    # Milliseconds in the string show sub-second loop-timing jitter per device.
+    on_time:
+      - seconds: 0
+        minutes: /5
+        then:
+          - lambda: |-
+              if (!id(g_provisioned) || !id(g_sntp_synced)) return;
+              struct timeval tv;
+              gettimeofday(&tv, nullptr);
+              char ts[32];
+              strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", gmtime(&tv.tv_sec));
+              sprintf(ts + strlen(ts), ".%03ldZ", tv.tv_usec / 1000);
+              std::string topic = "esphome/" + id(g_device_id) + "-"
+                                  + str_sprintf("%d", id(g_device_num)) + "/time_sync";
+              id(mqtt_component)->publish(topic, std::string(ts), 0, false);
+              ESP_LOGI("sntp", "time_sync: %s", ts);
 
 binary_sensor:
   - platform: status
@@ -165,22 +184,6 @@ interval:
           std::string topic = "esphome/" + id(g_device_id) + "-"
                               + str_sprintf("%d", id(g_device_num)) + "/sntp_synced";
           id(mqtt_component)->publish(topic, std::string("false"), 0, true);
-
-  # Time-sync heartbeat — publishes current UTC to MQTT every 5 minutes.
-  # Compare timestamps across devices to detect SNTP drift.
-  - interval: 5min
-    then:
-      - lambda: |-
-          if (!id(g_provisioned) || !id(g_sntp_synced)) return;
-          struct timeval tv;
-          gettimeofday(&tv, nullptr);
-          char ts[32];
-          strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", gmtime(&tv.tv_sec));
-          sprintf(ts + strlen(ts), ".%03ldZ", tv.tv_usec / 1000);
-          std::string topic = "esphome/" + id(g_device_id) + "-"
-                              + str_sprintf("%d", id(g_device_num)) + "/time_sync";
-          id(mqtt_component)->publish(topic, std::string(ts), 0, false);
-          ESP_LOGI("sntp", "time_sync published: %s", ts);
 
   # Red LED SNTP heartbeat.
   #
