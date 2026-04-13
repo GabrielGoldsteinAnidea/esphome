@@ -75,6 +75,9 @@ mqtt:
   discovery: false
   on_connect:
     then:
+      # Brief delay so the broker finishes processing the CONNACK before we
+      # flood it with retained discovery messages.
+      - delay: 2s
       - if:
           condition:
             lambda: 'return id(g_provisioned);'
@@ -106,18 +109,31 @@ time:
     update_interval: 30s      # was 15min default; limits inter-sync drift
     on_time_sync:
       then:
-        - globals.set:
-            id: g_sntp_synced
-            value: 'true'
         - lambda: |-
+            bool first_sync = !id(g_sntp_synced);
+            id(g_sntp_synced) = true;
             id(g_sntp_last_sync_ms) = millis();
-            if (!id(g_provisioned)) return;
-            std::string topic = "esphome/" + id(g_device_id) + "-"
-                                + str_sprintf("%d", id(g_device_num)) + "/sntp_synced";
-            id(mqtt_component)->publish(topic, std::string("true"), 0, true);
-        - logger.log:
-            level: INFO
-            format: "SNTP time synchronized"
+            if (!id(g_provisioned)) {
+              ESP_LOGI("sntp", "SNTP time synchronized (not provisioned, skipping MQTT)");
+              return;
+            }
+            std::string base = "esphome/" + id(g_device_id) + "-"
+                               + str_sprintf("%d", id(g_device_num));
+            id(mqtt_component)->publish(base + "/sntp_synced", std::string("true"), 0, true);
+
+            // Publish time_sync immediately on first sync so HA shows a value
+            // without waiting up to 5 minutes for the periodic interval.
+            if (first_sync) {
+              struct timeval tv;
+              gettimeofday(&tv, nullptr);
+              char ts[32];
+              strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", gmtime(&tv.tv_sec));
+              sprintf(ts + strlen(ts), ".%03ldZ", tv.tv_usec / 1000);
+              id(mqtt_component)->publish(base + "/time_sync", std::string(ts), 0, false);
+              ESP_LOGI("sntp", "SNTP first sync — time_sync published: %s", ts);
+            } else {
+              ESP_LOGI("sntp", "SNTP time synchronized");
+            }
 
 binary_sensor:
   - platform: status
@@ -132,16 +148,6 @@ sensor:
 switch:
   - platform: restart
     name: "Restart"
-
-script:
-  # Fired once per second at the boundary. The 500ms delay uses the RTOS
-  # timer, so turn-off accuracy is independent of the poll interval.
-  - id: red_light_pulse
-    mode: single   # ignore re-entry if previous pulse is still running
-    then:
-      - output.turn_on: red_light
-      - delay: 500ms
-      - output.turn_off: red_light
 
 interval:
   # SNTP watchdog — fires every 60s. If 120s have elapsed since the last
@@ -160,20 +166,46 @@ interval:
                               + str_sprintf("%d", id(g_device_num)) + "/sntp_synced";
           id(mqtt_component)->publish(topic, std::string("false"), 0, true);
 
-  # 1ms poll — only acts on the rising edge of each SNTP second.
-  # Accuracy: ±loop_time on the turn-on edge, RTOS-timer accuracy on turn-off.
+  # Time-sync heartbeat — publishes current UTC to MQTT every 5 minutes.
+  # Compare timestamps across devices to detect SNTP drift.
+  - interval: 5min
+    then:
+      - lambda: |-
+          if (!id(g_provisioned) || !id(g_sntp_synced)) return;
+          struct timeval tv;
+          gettimeofday(&tv, nullptr);
+          char ts[32];
+          strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", gmtime(&tv.tv_sec));
+          sprintf(ts + strlen(ts), ".%03ldZ", tv.tv_usec / 1000);
+          std::string topic = "esphome/" + id(g_device_id) + "-"
+                              + str_sprintf("%d", id(g_device_num)) + "/time_sync";
+          id(mqtt_component)->publish(topic, std::string(ts), 0, false);
+          ESP_LOGI("sntp", "time_sync published: %s", ts);
+
+  # Red LED SNTP heartbeat.
+  #
+  # OLD approach (removed): detect second boundary → execute mode:single script
+  # → 500ms RTOS delay → turn off. Problem: the RTOS delay starts from whenever
+  # the boundary was detected (±loop_time), so the off-edge drifts independently
+  # of wall-clock. Any loop-time variation shifts the entire on-period.
+  #
+  # NEW approach: poll wall-clock every 1ms and drive the LED directly based on
+  # tv_usec. The LED is ON for the first 500ms of each second (tv_usec < 500000)
+  # and OFF for the second 500ms. This is self-correcting — a late poll produces
+  # a brief glitch, but the very next poll restores the correct state. All devices
+  # running SNTP-synced clocks compute the same tv_usec and therefore drive their
+  # LEDs in lockstep regardless of individual loop-time variation.
   - interval: 1ms
     then:
       - lambda: |-
-          if (!id(conn_status).state) {
+          if (!id(conn_status).state || !id(g_sntp_synced)) {
             id(red_light).turn_off();
             return;
           }
-          static uint32_t last_second = UINT32_MAX;
           struct timeval tv;
           gettimeofday(&tv, nullptr);
-          uint32_t sec = (uint32_t)tv.tv_sec;
-          if (sec != last_second) {
-            last_second = sec;
-            id(red_light_pulse).execute();
+          if (tv.tv_usec < 500000) {
+            id(red_light).turn_on();
+          } else {
+            id(red_light).turn_off();
           }
