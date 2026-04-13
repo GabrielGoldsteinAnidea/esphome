@@ -164,10 +164,6 @@ sensor:
     loop_time:
       name: "Loop Time"
 
-switch:
-  - platform: restart
-    name: "Restart"
-
 interval:
   # SNTP watchdog — fires every 60s. If 120s have elapsed since the last
   # successful sync (and we were previously synced), mark as unsynced and
