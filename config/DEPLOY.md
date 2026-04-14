@@ -102,6 +102,61 @@ The NeoPixel on each Feather board shows device state at a glance.
 
 ---
 
+## Logs & Crash Diagnostics
+
+### Live logs (WiFi, no USB needed)
+
+```powershell
+esphome logs config\air-alarm.yaml
+```
+
+Connects over mDNS/OTA and streams the serial log to the terminal. Press `Ctrl+C` to stop. Most useful for watching a device in real time after a reboot.
+
+### Live logs from HA
+
+Settings → Devices → [device] → **Logs** button. Streams the same log over the native API. Not persisted — only shows output since the page was opened.
+
+### Reset Reason (persists across reboots)
+
+Each device exposes a **Reset Reason** diagnostic entity in HA (Settings → Devices → [device]). Common values:
+
+| Value | Meaning |
+|---|---|
+| `Power On` | Normal first boot |
+| `Software` | Intentional restart (button, OTA) |
+| `Watchdog` | Main loop blocked >5 s — check MQTT/WiFi stalls |
+| `Brownout` | Supply voltage dropped — check power supply |
+| `Exception/Panic` | Firmware crash — needs serial backtrace |
+
+### MQTT log stream (WARN+ messages, persisted in broker)
+
+All devices publish WARN-level and above log messages to MQTT when provisioned:
+
+```
+Topic:   esphome/<device-id>-<device-num>/log
+Example: esphome/air-alarm-1/log
+```
+
+Subscribe to all devices at once in MQTT Explorer:
+
+```
+esphome/+/log
+```
+
+This captures watchdog warnings, SNTP failures, and any `ESP_LOGW` / `ESP_LOGE` calls without needing USB. Messages survive HA restarts (broker retains the last value).
+
+### Serial backtrace (Exception/Panic crashes)
+
+If Reset Reason shows `Exception/Panic`, connect USB and run:
+
+```powershell
+esphome logs config\air-alarm.yaml --device COM3
+```
+
+The backtrace printed to serial can be decoded with the ESP-IDF monitor tool or pasted into [https://espressi.f.io/](https://github.com/espressif/esp-idf-monitor) (offline tool in the ESP-IDF toolchain).
+
+---
+
 ## Re-provisioning
 
 To change a device's identity, call the provision service again with new values. To fully reset:
