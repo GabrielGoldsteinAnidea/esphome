@@ -5,6 +5,30 @@ api:
 debug:
   update_interval: 5s
 
+logger:
+  level: DEBUG
+  logs:
+    # Suppress high-frequency noise so only meaningful messages get through
+    mqtt: WARN
+    mqtt.component: WARN
+    sensor: WARN
+    binary_sensor: WARN
+    light: WARN
+    interval: WARN
+    script: WARN
+  on_message:
+    level: WARN
+    then:
+      - if:
+          condition:
+            lambda: 'return id(g_provisioned);'
+          then:
+            - mqtt.publish:
+                topic: !lambda |-
+                  return "esphome/" + id(g_device_id) + "-"
+                         + str_sprintf("%d", id(g_device_num)) + "/log";
+                payload: !lambda 'return message;'
+
 text_sensor:
   - platform: debug
     device:
