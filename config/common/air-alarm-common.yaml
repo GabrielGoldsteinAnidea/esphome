@@ -3,7 +3,7 @@ api:
     key: !secret air-alarm_api_encryption_key
 
 debug:
-  update_interval: 5s
+  update_interval: 60s
 
 logger:
   level: DEBUG
