@@ -109,7 +109,7 @@ esphome:
             static void run(void *) {
               constexpr gpio_num_t PIN = GPIO_NUM_13;
               while (true) {
-                bool synced    = id(g_sntp_synced).value();
+                bool synced    = id(g_sntp_synced);
                 bool connected = id(conn_status).state;
                 if (!synced || !connected) {
                   gpio_set_level(PIN, 0);
