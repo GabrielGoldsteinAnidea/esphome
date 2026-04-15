@@ -13,7 +13,9 @@ preferences:
 
 # captive_portal:
 
-improv_serial:
+# improv_serial disabled: these devices provision via the HA 'provision' API
+# service call, not USB serial. The component calls uart_get_buffered_data_len()
+# (an IDF driver syscall) every single loop tick — pure overhead in production.
 
 # Enable logging
 logger:

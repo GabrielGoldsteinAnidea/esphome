@@ -80,6 +80,67 @@ esphome:
     priority: -200    # after all components are initialised
     then:
       - component.update: debug_component
+      - lambda: |-
+          // ── Red LED SNTP heartbeat task ─────────────────────────────────────────
+          // Dedicated FreeRTOS task that drives GPIO13 (red_light) with < 1ms jitter
+          // at the wall-clock second and half-second boundaries.
+          //
+          // Why a task instead of an ESPHome interval:
+          //   Any interval < 16ms forces the main loop to wake faster than its natural
+          //   16ms cadence (scheduler's next_schedule_in clamp). At 10ms the loop ran
+          //   at ~100 Hz instead of ~62 Hz, accounting for ~31% loopTask CPU.
+          //   A dedicated task removes this entirely and achieves tighter timing by
+          //   sleeping most of each 500ms half-period then fine-polling for the last
+          //   ~2ms — the only window where < 1ms accuracy matters.
+          //
+          // Timing design:
+          //   1. Coarse sleep: vTaskDelay wakes ~2ms before the 500ms boundary.
+          //      Resolution = FreeRTOS tick period (1ms at CONFIG_FREERTOS_HZ=1000).
+          //   2. Fine-poll: tight loop with taskYIELD() for the last ~2ms.
+          //      taskYIELD() lets same-priority tasks run but keeps us runnable.
+          //      Higher-priority tasks (WiFi/LwIP at 18-23) can preempt, adding at
+          //      most ~500µs jitter in practice.
+          //   3. The task is pinned to core 1 (app CPU) so WiFi/LwIP on core 0 cannot
+          //      preempt it during the fine-poll window.
+          //
+          // gpio_set_level() is ISR-safe so it can be called from any task context
+          // without conflicting with ESPHome's GPIOBinaryOutput state machine.
+          struct RedLedTask {
+            static void run(void *) {
+              constexpr gpio_num_t PIN = GPIO_NUM_13;
+              while (true) {
+                bool synced    = id(g_sntp_synced).value();
+                bool connected = id(conn_status).state;
+                if (!synced || !connected) {
+                  gpio_set_level(PIN, 0);
+                  vTaskDelay(pdMS_TO_TICKS(50));   // poll state at low rate when inactive
+                  continue;
+                }
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                uint32_t us = (uint32_t)tv.tv_usec;
+                bool on = (us < 500000);
+                gpio_set_level(PIN, on ? 1 : 0);
+                // Coarse sleep: wake ~2ms before the next 0/500ms boundary
+                uint32_t us_to = on ? (500000 - us) : (1000000 - us);
+                if (us_to > 2500)
+                  vTaskDelay(pdMS_TO_TICKS((us_to - 2000) / 1000));
+                // Fine-poll: tight loop until boundary, yielding to same-priority peers
+                while (true) {
+                  gettimeofday(&tv, nullptr);
+                  us = (uint32_t)tv.tv_usec;
+                  // ON→OFF: wait for us to reach 500000
+                  // OFF→ON: wait for second rollover (us wraps back below 500000)
+                  if (on ? (us >= 500000) : (us < 500000)) break;
+                  taskYIELD();
+                }
+                gpio_set_level(PIN, on ? 0 : 1);
+              }
+            }
+          };
+          // Priority 10: above loopTask (1), MQTT (5), ENS220 (8); below LwIP (18) and WiFi (23).
+          // Pinned to core 1 (app CPU) to avoid WiFi/LwIP preemption during fine-poll.
+          xTaskCreatePinnedToCore(RedLedTask::run, "red_led", 2048, nullptr, 10, nullptr, 1);
 
 button:
   - platform: template
@@ -256,31 +317,4 @@ interval:
                               + str_sprintf("%d", id(g_device_num)) + "/sntp_synced";
           id(mqtt_component)->publish(topic, std::string("false"), 0, true);
 
-  # Red LED SNTP heartbeat.
-  #
-  # OLD approach (removed): detect second boundary → execute mode:single script
-  # → 500ms RTOS delay → turn off. Problem: the RTOS delay starts from whenever
-  # the boundary was detected (±loop_time), so the off-edge drifts independently
-  # of wall-clock. Any loop-time variation shifts the entire on-period.
-  #
-  # NEW approach: poll wall-clock and drive the LED directly based on tv_usec.
-  # The LED is ON for the first 500ms of each second (tv_usec < 500000) and OFF
-  # for the second 500ms. Self-correcting — a late poll produces a brief glitch
-  # but the very next poll restores correct state. All SNTP-synced devices compute
-  # the same tv_usec and drive their LEDs in lockstep regardless of loop jitter.
-  # 10ms interval: 10ms timing error on a 500ms half-period is imperceptible,
-  # and reduces scheduler overhead 10x vs the previous 1ms interval.
-  - interval: 10ms
-    then:
-      - lambda: |-
-          if (!id(conn_status).state || !id(g_sntp_synced)) {
-            id(red_light).turn_off();
-            return;
-          }
-          struct timeval tv;
-          gettimeofday(&tv, nullptr);
-          if (tv.tv_usec < 500000) {
-            id(red_light).turn_on();
-          } else {
-            id(red_light).turn_off();
-          }
+  # Red LED SNTP heartbeat moved to a dedicated FreeRTOS task (see on_boot above).

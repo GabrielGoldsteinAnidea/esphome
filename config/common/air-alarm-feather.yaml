@@ -112,32 +112,46 @@ script:
     mode: restart
     then:
       - lambda: |-
+          // s_already_cyan: true only while we are continuously in the idle-provisioned
+          // state. Reset to false whenever any non-idle case runs (event flash, OTA,
+          // or deprovisioned orange). This gives:
+          //   • First provisioning or boot-while-provisioned → 500ms orange→cyan
+          //   • Return from door event (green/blue→cyan)     → 500ms sweep
+          //   • 2s-interval heartbeat already at cyan        → 0ms (no transformer)
+          static bool s_already_cyan = false;
           auto call = id(status_light).make_call();
           call.set_state(true);
           call.set_brightness(0.5f);
           switch (id(g_led_state)) {
             case 1:  // EVENT_POSITIVE — green (door open)
+              s_already_cyan = false;
               call.set_red(0.0f); call.set_green(1.0f); call.set_blue(0.0f);
               call.set_transition_length(0);
               break;
             case 2:  // EVENT_NEGATIVE — blue (door close)
+              s_already_cyan = false;
               call.set_red(0.0f); call.set_green(0.0f); call.set_blue(1.0f);
               call.set_transition_length(0);
               break;
             case 3:  // OTA — purple
+              s_already_cyan = false;
               call.set_red(0.6f); call.set_green(0.0f); call.set_blue(1.0f);
               call.set_transition_length(0);
               break;
             default:  // 0 = IDLE
               call.set_brightness(0.2f);
               if (!id(g_provisioned)) {
-                // Unprovisioned devices show orange to prompt provisioning.
+                // Unprovisioned — orange.
+                s_already_cyan = false;
                 call.set_red(1.0f); call.set_green(0.45f); call.set_blue(0.0f);
                 call.set_transition_length(0);
               } else {
-                // Provisioned devices show cyan when idle. Transition smoothly from orange on provisioning.
+                // Provisioned — cyan. 500ms sweep on any genuine state change;
+                // 0ms when already cyan (2s heartbeat) so the LightState transformer
+                // is not re-created for a colour that hasn't changed.
                 call.set_red(0.0f); call.set_green(1.0f); call.set_blue(1.0f);
-                call.set_transition_length(500);
+                call.set_transition_length(s_already_cyan ? 0 : 500);
+                s_already_cyan = true;
               }
               break;
           }
