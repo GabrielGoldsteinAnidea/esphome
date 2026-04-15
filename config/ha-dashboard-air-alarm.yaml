@@ -18,15 +18,25 @@ cards:
     card_param: entities
     filter:
       include:
-        - integration: esphome
+        - options: {}
+          integration: esphome
           entity_id: /air_alarm.*firmware_version/
-        - integration: esphome
+        - options: {}
+          integration: esphome
           entity_id: /air_alarm.*update_firmware/
-        - integration: esphome
+        - options: {}
+          integration: esphome
           entity_id: /air_alarm.*restart/
+        - options: {}
+          integration: esphome
+          entity_id: /air_alarm.*device_info/
     sort:
-      method: entity_id
+      method: friendly_name
+      ignore_case: true
     group_by: device
+    grid_options:
+      columns: full
+      rows: auto
 
   # Uptime + MQTT alarm event sensors (alarm_event_activity / alarm_event_time).
   # MQTT sensors share the same device identifier (MAC), so group_by: device
