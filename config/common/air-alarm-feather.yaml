@@ -25,6 +25,10 @@ i2c:
   sda: GPIO22
   scl: GPIO20
   frequency: 400kHz
+  # At 400kHz a full transaction (status + data read) takes <2ms. 50ms gives
+  # 25x headroom for clock-stretching while failing fast on a locked bus instead
+  # of blocking the main loop for 500ms-2s (ESP-IDF default is ~1s).
+  timeout: 50ms
 
 switch:
   - platform: gpio

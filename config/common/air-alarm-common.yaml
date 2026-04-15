@@ -123,6 +123,10 @@ mqtt:
   username: !secret mqtt_username
   password: !secret mqtt_password
   discovery: false
+  # Default keepalive is 15s — all 4 devices connected at similar times send
+  # PINGREQ simultaneously every 15s, saturating the broker and causing
+  # synchronized 100-600ms stalls across the fleet. 60s spaces out the pings.
+  keepalive: 60s
   on_connect:
     then:
       # Brief delay so the broker finishes processing the CONNACK before we
