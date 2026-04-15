@@ -30,7 +30,9 @@ sensor:
   - platform: wifi_signal
     name: Wi-Fi Signal
     entity_category: diagnostic
-    update_interval: 15s
+    # 15s caused 100-500ms main-loop stalls — the WiFi driver call is synchronous.
+    # 60s reduces blocking frequency 4x with no meaningful loss of diagnostic value.
+    update_interval: 60s
 
   - id: _uptime
     platform: uptime
