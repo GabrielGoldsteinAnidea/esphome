@@ -3,10 +3,11 @@ api:
     key: !secret air-alarm_api_encryption_key
 
 debug:
-  # Update interval drives vTaskList()/heap-stats collection — expensive (~2s).
-  # 10min means one unavoidable 2s stall per 10 minutes, which is acceptable.
-  # The schedule-violation detector in ens220.cpp provides real-time timing data.
-  update_interval: 10min
+  id: debug_component
+  # Never auto-update — collection takes ~2s and blocks the main loop.
+  # Triggered once at boot (on_boot below) and on demand via the
+  # "Refresh Debug Info" button in HA.
+  update_interval: never
 
 logger:
   level: DEBUG
@@ -74,7 +75,20 @@ ota:
   - platform: http_request
     id: ota_http_request
 
+esphome:
+  on_boot:
+    priority: -200    # after all components are initialised
+    then:
+      - component.update: debug_component
+
 button:
+  - platform: template
+    name: "Refresh Debug Info"
+    entity_category: diagnostic
+    icon: mdi:bug-check
+    on_press:
+      - component.update: debug_component
+
   - platform: template
     name: "Update Firmware"
     entity_category: diagnostic
