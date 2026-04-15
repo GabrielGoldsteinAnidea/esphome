@@ -3,7 +3,10 @@ api:
     key: !secret air-alarm_api_encryption_key
 
 debug:
-  update_interval: 60s
+  # Update interval drives vTaskList()/heap-stats collection — expensive (~2s).
+  # 10min means one unavoidable 2s stall per 10 minutes, which is acceptable.
+  # The schedule-violation detector in ens220.cpp provides real-time timing data.
+  update_interval: 10min
 
 logger:
   level: DEBUG
@@ -19,9 +22,18 @@ logger:
   on_message:
     level: WARN
     then:
+      # Rate-limit MQTT log publishing to one message per 5s.
+      # Without this a 2s debug-component stall triggers a "schedule violation"
+      # LOGW → mqtt.publish (~180ms) → another violation → another publish:
+      # a cascade that adds 3-4 secondary stalls after every primary one.
       - if:
           condition:
-            lambda: 'return id(g_provisioned);'
+            lambda: |-
+              if (!id(g_provisioned)) return false;
+              uint32_t now = millis();
+              if ((now - id(g_last_log_publish_ms)) < 5000) return false;
+              id(g_last_log_publish_ms) = now;
+              return true;
           then:
             - mqtt.publish:
                 topic: !lambda |-
@@ -114,6 +126,11 @@ globals:
     restore_value: false
     initial_value: 'false'
 
+  - id: g_last_log_publish_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
   # millis() of the last successful SNTP sync. Used by the watchdog interval
   # to detect sync failure and clear g_sntp_synced if 120s elapse without
   # a successful sync (4× the 30s update_interval).
@@ -183,11 +200,6 @@ binary_sensor:
     name: Status
     id: conn_status
 
-sensor:
-  - platform: debug
-    loop_time:
-      name: "Loop Time"
-
 interval:
   # SNTP watchdog — fires every 60s. If 120s have elapsed since the last
   # successful sync (and we were previously synced), mark as unsynced and
@@ -212,13 +224,14 @@ interval:
   # the boundary was detected (±loop_time), so the off-edge drifts independently
   # of wall-clock. Any loop-time variation shifts the entire on-period.
   #
-  # NEW approach: poll wall-clock every 1ms and drive the LED directly based on
-  # tv_usec. The LED is ON for the first 500ms of each second (tv_usec < 500000)
-  # and OFF for the second 500ms. This is self-correcting — a late poll produces
-  # a brief glitch, but the very next poll restores the correct state. All devices
-  # running SNTP-synced clocks compute the same tv_usec and therefore drive their
-  # LEDs in lockstep regardless of individual loop-time variation.
-  - interval: 1ms
+  # NEW approach: poll wall-clock and drive the LED directly based on tv_usec.
+  # The LED is ON for the first 500ms of each second (tv_usec < 500000) and OFF
+  # for the second 500ms. Self-correcting — a late poll produces a brief glitch
+  # but the very next poll restores correct state. All SNTP-synced devices compute
+  # the same tv_usec and drive their LEDs in lockstep regardless of loop jitter.
+  # 10ms interval: 10ms timing error on a 500ms half-period is imperceptible,
+  # and reduces scheduler overhead 10x vs the previous 1ms interval.
+  - interval: 10ms
     then:
       - lambda: |-
           if (!id(conn_status).state || !id(g_sntp_synced)) {
