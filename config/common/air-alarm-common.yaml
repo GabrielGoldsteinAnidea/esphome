@@ -219,6 +219,27 @@ binary_sensor:
     id: conn_status
 
 interval:
+  # FreeRTOS task stats — fires every 60s.
+  # Publishes vTaskList() and vTaskGetRunTimeStats() to MQTT so you can see
+  # which task is consuming CPU or has a small stack high-water mark without
+  # needing USB serial.  Requires sdkconfig_options in air-alarm-feather.yaml:
+  #   CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS: "y"
+  #   CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
+  #
+  # vTaskList() columns:  name  state(R/B/S/D/X)  priority  stack-hwm  task-num
+  # vTaskGetRunTimeStats(): name  abs-ticks  %-cpu
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (!id(g_provisioned)) return;
+          static char buf[2048];
+          std::string base = "esphome/" + id(g_device_id) + "-"
+                             + str_sprintf("%d", id(g_device_num));
+          vTaskList(buf);
+          id(mqtt_component)->publish(base + "/task_list", std::string(buf), 0, false);
+          vTaskGetRunTimeStats(buf);
+          id(mqtt_component)->publish(base + "/task_runtime", std::string(buf), 0, false);
+
   # SNTP watchdog — fires every 60s. If 120s have elapsed since the last
   # successful sync (and we were previously synced), mark as unsynced and
   # push "false" to the retained MQTT topic so HA sees the failure.

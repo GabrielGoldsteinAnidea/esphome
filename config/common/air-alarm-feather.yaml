@@ -13,6 +13,12 @@ esp32:
   board: adafruit_feather_esp32_v2
   framework:
     type: esp-idf
+    sdkconfig_options:
+      # Enable vTaskList() and vTaskGetRunTimeStats() for MQTT task monitoring.
+      # vTaskList():        name, state (R/B/S), priority, stack-hwm, task-num
+      # vTaskGetRunTimeStats(): abs + % CPU time per task since boot
+      CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS: "y"
+      CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
 
 logger:
   level: INFO
