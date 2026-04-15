@@ -102,10 +102,13 @@ script:
               call.set_transition_length(0);
               break;
             default:  // 0 = IDLE
+              call.set_brightness(0.2f);
               if (!id(g_provisioned)) {
+                // Unprovisioned devices show orange to prompt provisioning.
                 call.set_red(1.0f); call.set_green(0.45f); call.set_blue(0.0f);
                 call.set_transition_length(0);
               } else {
+                // Provisioned devices show cyan when idle. Transition smoothly from orange on provisioning.
                 call.set_red(0.0f); call.set_green(1.0f); call.set_blue(1.0f);
                 call.set_transition_length(500);
               }
