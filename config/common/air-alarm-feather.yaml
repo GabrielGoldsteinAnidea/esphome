@@ -94,13 +94,25 @@ esphome:
       - script.execute: led_refresh
 
 interval:
-  # Keeps idle colour current (orange/cyan transition as state changes).
+  # Keeps idle colour current (orange/cyan/red transition as state changes).
   # Skipped while g_led_state != 0 so it cannot disturb event or OTA colours.
   - interval: 2s
     then:
       - if:
           condition:
             lambda: 'return id(g_led_state) == 0;'
+          then:
+            - script.execute: led_refresh
+
+  # Error-blink driver: runs at 1s so the red blink is visible.
+  # Only fires in idle state while MQTT is disconnected or SNTP is unsynced.
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return id(g_led_state) == 0
+                  && (!id(conn_status).state || !id(g_sntp_synced));
           then:
             - script.execute: led_refresh
 
@@ -140,15 +152,28 @@ script:
               break;
             default:  // 0 = IDLE
               call.set_brightness(0.2f);
-              if (!id(g_provisioned)) {
+              if (!id(conn_status).state || !id(g_sntp_synced)) {
+                // Error: MQTT disconnected or SNTP unsynced — blink red.
+                // millis()/1000 alternates 0/1 every second, giving a clean
+                // 1Hz blink driven by the 1s error-blink interval above.
+                bool on = (millis() / 1000) % 2 == 0;
+                s_already_cyan = false;
+                call.set_transition_length(0);
+                if (on) {
+                  call.set_brightness(0.5f);
+                  call.set_red(1.0f); call.set_green(0.0f); call.set_blue(0.0f);
+                } else {
+                  call.set_state(false);
+                }
+              } else if (!id(g_provisioned)) {
                 // Unprovisioned — orange.
                 s_already_cyan = false;
                 call.set_red(1.0f); call.set_green(0.45f); call.set_blue(0.0f);
                 call.set_transition_length(0);
               } else {
-                // Provisioned — cyan. 500ms sweep on any genuine state change;
-                // 0ms when already cyan (2s heartbeat) so the LightState transformer
-                // is not re-created for a colour that hasn't changed.
+                // Provisioned + connected + synced — cyan. 500ms sweep on any
+                // genuine state change; 0ms when already cyan (2s heartbeat)
+                // so the LightState transformer is not re-created unnecessarily.
                 call.set_red(0.0f); call.set_green(1.0f); call.set_blue(1.0f);
                 call.set_transition_length(s_already_cyan ? 0 : 500);
                 s_already_cyan = true;
