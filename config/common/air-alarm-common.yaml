@@ -138,9 +138,12 @@ esphome:
               }
             }
           };
-          // Priority 10: above loopTask (1), MQTT (5), ENS220 (8); below LwIP (18) and WiFi (23).
-          // Pinned to core 1 (app CPU) to avoid WiFi/LwIP preemption during fine-poll.
-          xTaskCreatePinnedToCore(RedLedTask::run, "red_led", 2048, nullptr, 10, nullptr, 1);
+          // Priority 6: above loopTask (1) and esphome_mqtt (5) so neither preempts the
+          // fine-poll; BELOW ENS220 (8) so sensor timing is never affected by the LED task.
+          // ENS220 runs for ~2ms per 64ms cycle (3% duty) and can preempt the fine-poll,
+          // causing occasional ±2ms LED jitter — acceptable vs. the 350-420ms sensor
+          // violations that priority 10 caused.  WiFi/LwIP (18-23) are on core 0.
+          xTaskCreatePinnedToCore(RedLedTask::run, "red_led", 2048, nullptr, 6, nullptr, 1);
 
 button:
   - platform: template
