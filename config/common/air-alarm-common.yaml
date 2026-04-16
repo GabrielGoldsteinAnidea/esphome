@@ -188,6 +188,11 @@ mqtt:
   username: !secret mqtt_username
   password: !secret mqtt_password
   discovery: false
+  # Move all mqtt.publish() calls off the main loop onto a dedicated FreeRTOS
+  # task (esphome_mqtt, priority 5). The main loop enqueues and returns in <1µs;
+  # the task does the blocking TCP write. Without this, every publish() blocks
+  # the main loop for the TCP round-trip, causing "took a long time" violations.
+  idf_send_async: true
   # Default keepalive is 15s — all 4 devices connected at similar times send
   # PINGREQ simultaneously every 15s, saturating the broker and causing
   # synchronized 100-600ms stalls across the fleet. 60s spaces out the pings.

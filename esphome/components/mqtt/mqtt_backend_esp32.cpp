@@ -220,13 +220,20 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
             break;
 
           case MQTT_QUEUE_TYPE_PUBLISH:
-            // Use enqueue (non-blocking) instead of publish (blocks on TCP until
-            // the broker ACKs). With publish(), a slow broker stalls this task
-            // while new messages pile up in our 30-element queue, causing drops.
-            // enqueue() hands the payload to the ESP-IDF mqtt_task outbound queue
-            // and returns immediately; mqtt_task handles the actual TCP write.
-            esp_mqtt_client_enqueue(this_mqtt->handler_.get(), elem->topic, elem->payload, elem->payload_len, elem->qos,
-                                    elem->retain, true);
+            // Use publish() (synchronous TCP write) here — this blocks the
+            // esphome_mqtt_task for the duration of the TCP write, but that
+            // is the design intent: the main loop enqueued the message and
+            // returned immediately; this task absorbs the blocking.
+            //
+            // Do NOT use esp_mqtt_client_enqueue() here. That would create a
+            // two-stage async path: main→our queue→esphome_mqtt_task→ESP-IDF
+            // outbox→ESP-IDF mqtt_task. The ESP-IDF mqtt_task processes its
+            // outbox only when it wakes from esp_transport_poll_read(), which
+            // can sleep for up to the keepalive interval (tens of seconds)
+            // when the socket is idle — causing the multi-second delivery
+            // latency observed in practice. publish() delivers immediately.
+            esp_mqtt_client_publish(this_mqtt->handler_.get(), elem->topic, elem->payload, elem->payload_len, elem->qos,
+                                    elem->retain);
             break;
 
           default:

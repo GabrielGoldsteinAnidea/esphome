@@ -71,16 +71,6 @@ globals:
     initial_value: 'false'
 
 esphome:
-  # USE_MQTT_IDF_ENQUEUE was previously needed when _alarm_pressure was streaming
-  # at 15 Hz via MQTT — the synchronous publish() blocked the main loop on every
-  # TCP write, causing watchdog violations. That stream has been removed; all MQTT
-  # publishes are now low-frequency (event peaks, timestamps, diagnostics). The
-  # async enqueue path introduced multi-second delivery latency (the ESP-IDF MQTT
-  # client processes its outbox on its own schedule) and silently dropped the
-  # retain flag, so retain=true publishes were sent as retain=false. Synchronous
-  # publish() is the correct path: immediate delivery, retain honoured, and no
-  # watchdog risk at the current publish rate.
-
   on_boot:
     priority: -100   # after NVS globals are restored
     then:
