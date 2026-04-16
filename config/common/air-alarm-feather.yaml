@@ -71,22 +71,15 @@ globals:
     initial_value: 'false'
 
 esphome:
-  platformio_options:
-    # Move all MQTT publishes off the main loop.
-    #
-    # Without this flag, every mqtt.publish() (including publish_state() callbacks
-    # in on_value) calls esp_mqtt_client_publish() synchronously, which blocks on
-    # the TCP socket. That is the root cause of the "ens220.sensor took a long time"
-    # and "mqtt took a long time" watchdog violations seen in the logs.
-    #
-    # With this flag, publish() enqueues to a 30-element lock-free queue and returns
-    # immediately (<1µs). A dedicated FreeRTOS task named "esphome_mqtt" at priority 5
-    # drains the queue and does the actual TCP writes. If the queue fills (broker
-    # unreachable for >~2s at 15 Hz pressure streaming), messages are dropped and
-    # logged every 10s — acceptable for this application since event timestamps are
-    # low-frequency and captured before the publish pipeline.
-    build_flags:
-      - -DUSE_MQTT_IDF_ENQUEUE
+  # USE_MQTT_IDF_ENQUEUE was previously needed when _alarm_pressure was streaming
+  # at 15 Hz via MQTT — the synchronous publish() blocked the main loop on every
+  # TCP write, causing watchdog violations. That stream has been removed; all MQTT
+  # publishes are now low-frequency (event peaks, timestamps, diagnostics). The
+  # async enqueue path introduced multi-second delivery latency (the ESP-IDF MQTT
+  # client processes its outbox on its own schedule) and silently dropped the
+  # retain flag, so retain=true publishes were sent as retain=false. Synchronous
+  # publish() is the correct path: immediate delivery, retain honoured, and no
+  # watchdog risk at the current publish rate.
 
   on_boot:
     priority: -100   # after NVS globals are restored
