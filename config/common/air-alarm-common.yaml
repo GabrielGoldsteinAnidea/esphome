@@ -10,9 +10,10 @@ debug:
   update_interval: never
 
 logger:
-  level: DEBUG
+  level: INFO
   logs:
     # Suppress high-frequency noise so only meaningful messages get through
+    ens220: INFO
     mqtt: WARN
     mqtt.component: WARN
     sensor: WARN
