@@ -5,3 +5,6 @@
 [submodule "config/external_components/esphome-toybox"]
 	path = config/external_components/esphome-toybox
 	url = https://github.com/GabrielGoldsteinAnidea/esphome-toybox.git
+[submodule "config/external_components/esphome-stream-server-v2"]
+	path = config/external_components/esphome-stream-server-v2
+	url = https://github.com/midnight-security/esphome-stream-server-v2.git

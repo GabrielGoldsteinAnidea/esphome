@@ -1,0 +1,169 @@
+# Two UARTs exposed over TCP via tube0013/esphome-stream-server-v2,
+# plus an active-low GPIO line wired to the EVM RESET pin.
+#
+# Pin selection (Adafruit Feather ESP32 v2). Avoids:
+#   - GPIO6-11 (internal SPI flash, hard-reserved by the chip)
+#   - GPIO0/2/5/15 (strapping pins — boot mode can latch wrong)
+#   - GPIO0/2/13/20/22 (already used: NeoPixel, I2C power, red LED, I2C bus)
+#   - GPIO34/36/39 (input-only — can't drive TX)
+#
+#   control:   TX=GPIO14 (D6),  RX=GPIO32 (D9)
+#   data:      TX=GPIO27 (D12), RX=GPIO33 (D11)
+#   evm_reset: GPIO12 (D13 on Feather header)
+#
+# Note on GPIO12: it is the MTDI strapping pin (flash voltage select). The
+# Feather ESP32 v2 has eFuses programmed to ignore MTDI for flash voltage,
+# so driving it HIGH after boot is safe. At the instant of CPU reset GPIO12
+# is high-Z with internal pulldown, which is the correct strap value — the
+# ESPHome firmware only takes over the pin (driving it HIGH = released)
+# once setup() runs, well after the strap is sampled.
+#
+# TCP ports: control=6638, data=6639. Connect from a host with e.g.
+#   socat -d -d pty,raw,echo=0,link=/tmp/control TCP:<device-ip>:6638
+#
+# EVM reset: publish any payload to
+#   esphome/<device_id>-<device_num>/evm_reset
+# to drive GPIO12 LOW for 500ms (idle HIGH = released).
+#
+# Confirmation: when a reset fires (MQTT or HA button), an ISO-Z timestamp
+# is published once to
+#   esphome/<device_id>-<device_num>/evm_reset_event
+# with retain=false. Subscribe to it from AppDaemon / HA to confirm the
+# reset actually executed.
+
+# Stream-server lives as a git submodule at
+# config/external_components/esphome-stream-server-v2 pointing at the
+# midnight-security fork of tube0013/esphome-stream-server-v2. The fork
+# carries our local edits (OTA hook, TCP keepalive, dead-socket detection,
+# 1460-byte chunks, backlog/loss accounting). Run
+# `git submodule update --init --recursive` after a fresh clone.
+external_components:
+  - source:
+      type: local
+      path: external_components/esphome-stream-server-v2/components
+    components: [stream_server]
+    refresh: always
+
+uart:
+  # rx_buffer_size: default is 256 bytes — too tight at 921600 baud
+  # (a 256-byte buffer is only ~2.8ms of data, and a single ENS220 sensor
+  # cycle can stall loop() for ~2ms). 8192 gives ~88ms of headroom on the
+  # data line; 1024 gives ~89ms on the control line.
+  #
+  # rx_pin pullup: when the EVM is held in reset (or its TX driver is
+  # otherwise high-Z), without a pullup the RX line floats low and the
+  # ESP32 UART hardware reads it as a continuous break condition,
+  # flooding the rx buffer with 0x00 framing-error bytes. Internal
+  # pullup (~45 kΩ) keeps the line at idle-HIGH so a missing TX is
+  # treated as no traffic instead of an infinite stream of zeros.
+  - id: uart_control
+    tx_pin: GPIO14
+    rx_pin:
+      number: GPIO32
+      mode:
+        input: true
+        pullup: true
+    baud_rate: 115200
+    rx_buffer_size: 1024
+
+  - id: uart_data
+    tx_pin: GPIO27
+    rx_pin:
+      number: GPIO33
+      mode:
+        input: true
+        pullup: true
+    baud_rate: 921600
+    rx_buffer_size: 8192
+
+stream_server:
+  - id: stream_server_control
+    uart_id: uart_control
+    port: 6638
+  - id: stream_server_data
+    uart_id: uart_data
+    port: 6639
+
+# ── EVM reset line ───────────────────────────────────────────────────────────
+# Active-low. inverted: true means output.turn_on drives the pin LOW (assert)
+# and output.turn_off drives it HIGH (release). At setup the GPIO output
+# initialises to off, so the pin sits HIGH almost immediately after boot.
+output:
+  - platform: gpio
+    id: evm_reset
+    pin: GPIO12
+    inverted: true
+
+script:
+  # 500ms negative pulse on GPIO12. mode: restart — re-triggering during the
+  # pulse restarts the 500ms window so the EVM stays held in reset until
+  # 500ms after the most recent trigger.
+  - id: evm_reset_pulse
+    mode: restart
+    then:
+      - logger.log:
+          level: INFO
+          format: "EVM reset: asserting GPIO12 LOW (500ms pulse)"
+      - output.turn_on: evm_reset
+      - lambda: |-
+          // Publish ISO-Z confirmation timestamp on every reset assert.
+          // mqtt: idf_send_async enqueues the publish on the dedicated task
+          // so this does not block the 500ms pulse timing.
+          if (!id(g_provisioned)) return;
+          if (!id(mqtt_component)->is_connected()) return;
+          struct timeval tv;
+          gettimeofday(&tv, nullptr);
+          char ts[32];
+          strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", gmtime(&tv.tv_sec));
+          sprintf(ts + strlen(ts), ".%03ldZ", tv.tv_usec / 1000);
+          std::string topic = "esphome/" + id(g_device_id) + "-"
+                              + str_sprintf("%d", id(g_device_num))
+                              + "/evm_reset_event";
+          id(mqtt_component)->publish(topic, std::string(ts), 0, false);
+      - delay: 500ms
+      - output.turn_off: evm_reset
+      - logger.log:
+          level: INFO
+          format: "EVM reset: GPIO12 released — pulse complete"
+
+  # Subscribe to the per-device reset command topic. The topic depends on
+  # provisioning state (g_device_id, g_device_num) so it cannot be expressed
+  # as a static mqtt.on_message — we register it from a lambda once both
+  # provisioning and MQTT are ready. Static-bool guarded so MQTT reconnects
+  # do not stack callbacks.
+  - id: evm_reset_subscribe
+    mode: single
+    then:
+      - lambda: |-
+          static bool subscribed = false;
+          if (subscribed) return;
+          if (!id(g_provisioned)) return;
+          if (!id(mqtt_component)->is_connected()) return;
+          subscribed = true;
+          std::string topic = "esphome/" + id(g_device_id) + "-"
+                              + str_sprintf("%d", id(g_device_num)) + "/evm_reset";
+          id(mqtt_component)->subscribe(topic,
+            [](const std::string &t, const std::string &p) {
+              ESP_LOGI("evm", "MQTT trigger on %s (payload='%s')",
+                       t.c_str(), p.c_str());
+              id(evm_reset_pulse).execute();
+            });
+          ESP_LOGI("evm", "Subscribed to %s for EVM reset", topic.c_str());
+
+interval:
+  # Poll until the subscribe sticks. Self-noops after the static bool flips.
+  - interval: 5s
+    then:
+      - script.execute: evm_reset_subscribe
+
+button:
+  # HA-visible "Reset EVM" button. Reaches HA via the ESPHome native API
+  # (same path as Refresh Debug Info / Update Firmware in air-alarm-common).
+  # Pressing it runs the same pulse script as the MQTT command topic, so the
+  # two entry points are equivalent.
+  - platform: template
+    name: "Reset EVM"
+    icon: mdi:restart
+    entity_category: diagnostic
+    on_press:
+      - script.execute: evm_reset_pulse
