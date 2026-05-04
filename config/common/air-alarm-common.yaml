@@ -30,6 +30,7 @@ logger:
     # Custom tags. INFO so subscribe + trigger messages are visible without
     # turning on global VERBOSE (which would also flood mqtt.client_idf).
     evm: INFO
+    restart: INFO
   on_message:
     level: WARN
     then:
@@ -347,4 +348,38 @@ interval:
                               + str_sprintf("%d", id(g_device_num)) + "/sntp_synced";
           id(mqtt_component)->publish(topic, std::string("false"), 0, true);
 
+  # Re-attempt the remote-restart subscribe every 5s until both
+  # provisioning and MQTT are up. Self-noops after the static bool flips.
+  - interval: 5s
+    then:
+      - script.execute: mqtt_restart_subscribe
+
   # Red LED SNTP heartbeat moved to a dedicated FreeRTOS task (see on_boot above).
+
+script:
+  # Subscribe to esphome/<device_id>-<device_num>/restart and call
+  # App.safe_reboot() on any incoming message. Same idempotent pattern
+  # as evm_reset_subscribe in air-alarm-uart-streams.yaml — static-bool
+  # guarded so MQTT reconnects do not stack callbacks.
+  #
+  # Note on retain: the publisher MUST NOT set retain=true on this
+  # topic, or the device will reboot every time it reconnects to the
+  # broker (broker re-delivers the retained message → reboot loop).
+  - id: mqtt_restart_subscribe
+    mode: single
+    then:
+      - lambda: |-
+          static bool subscribed = false;
+          if (subscribed) return;
+          if (!id(g_provisioned)) return;
+          if (!id(mqtt_component)->is_connected()) return;
+          subscribed = true;
+          std::string topic = "esphome/" + id(g_device_id) + "-"
+                              + str_sprintf("%d", id(g_device_num)) + "/restart";
+          id(mqtt_component)->subscribe(topic,
+            [](const std::string &t, const std::string &p) {
+              ESP_LOGW("restart", "MQTT restart trigger on %s (payload='%s') — rebooting",
+                       t.c_str(), p.c_str());
+              App.safe_reboot();
+            });
+          ESP_LOGI("restart", "Subscribed to %s for ESP restart", topic.c_str());
