@@ -20,6 +20,14 @@ esp32:
       CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS: "y"
       CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
 
+      # lwIP TCP buffers — defaults (5744 = 4 MSS) are too tight for the
+      # stream_server data path at sustained 921600 baud. With ENS220 task
+      # preemption + WiFi airtime contention, socket->write() routinely
+      # fills the send buffer and returns short writes. Bumping to 16384
+      # gives ~11 MSS of headroom per active TCP socket.
+      CONFIG_LWIP_TCP_SND_BUF_DEFAULT: "16384"
+      CONFIG_LWIP_TCP_WND_DEFAULT: "16384"
+
 logger:
   level: INFO
   logs:

@@ -1,3 +1,9 @@
+substitutions:
+  # Default basename for the OTA URL below. Top-level YAMLs whose binary
+  # ships under a different filename (e.g. air-alarm-uart.yaml) override
+  # this by redeclaring it in their own substitutions block.
+  firmware_basename: "air-alarm"
+
 api:
   encryption:
     key: !secret air-alarm_api_encryption_key
@@ -21,6 +27,9 @@ logger:
     light: WARN
     interval: WARN
     script: WARN
+    # Custom tags. INFO so subscribe + trigger messages are visible without
+    # turning on global VERBOSE (which would also flood mqtt.client_idf).
+    evm: INFO
   on_message:
     level: WARN
     then:
@@ -49,6 +58,12 @@ text_sensor:
       name: "Device Info"
     reset_reason:
       name: "Reset Reason"
+
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      entity_category: diagnostic
+      icon: mdi:ip-network
 
 packages:
   - !include ens220-source-local.yaml
@@ -171,13 +186,19 @@ button:
       - delay: 500ms
       - ota.http_request.flash:
           id: ota_http_request
-          url: "http://192.168.4.2:8123/local/esphome/air-alarm.bin"
-          md5_url: "http://192.168.4.2:8123/local/esphome/air-alarm.md5"
+          url: "http://192.168.4.2:8123/local/esphome/${firmware_basename}.bin"
+          md5_url: "http://192.168.4.2:8123/local/esphome/${firmware_basename}.md5"
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   reboot_timeout: 120min
+  # Default is "light" which adds ~10–100ms wake-up latency on each transmit.
+  # The stream_server data path at 921600 baud cannot tolerate that — it
+  # caused TCP write loss bursts of 60–100 KB / 5 s in field logs. NONE
+  # keeps the radio awake; idle current rises ~70 mA but these are mains
+  # powered, so it is a non-issue.
+  power_save_mode: NONE
   ap:
     ssid: "Air Alarm Fallback"
     password: !secret wifi_password_ths
