@@ -150,11 +150,53 @@ script:
             });
           ESP_LOGI("evm", "Subscribed to %s for EVM reset", topic.c_str());
 
+  # 10ms UART break on the control TX line (GPIO14). Delegates to the
+  # stream_server.send_break action which inverts the TX signal — idle-HIGH
+  # becomes LOW for the duration, which the peer reads as a break. The
+  # action is non-blocking: it inverts immediately, then schedules the
+  # restore via the component's set_timeout, so the main loop is not
+  # parked for the break duration.
+  #
+  # Catch: during the break, any TCP-side write the stream_server forwards
+  # to this UART will be sent inverted (corrupted). The host protocol
+  # must not push commands while a break is in flight.
+  - id: evm_break_pulse
+    mode: single
+    then:
+      - logger.log:
+          level: INFO
+          format: "EVM break: 10ms break on uart_control (GPIO14)"
+      - stream_server.send_break:
+          id: stream_server_control
+          duration: 10ms
+
+  # Companion subscriber to evm_reset_subscribe — same idempotent pattern,
+  # different topic + script.
+  - id: evm_break_subscribe
+    mode: single
+    then:
+      - lambda: |-
+          static bool subscribed = false;
+          if (subscribed) return;
+          if (!id(g_provisioned)) return;
+          if (!id(mqtt_component)->is_connected()) return;
+          subscribed = true;
+          std::string topic = "esphome/" + id(g_device_id) + "-"
+                              + str_sprintf("%d", id(g_device_num)) + "/evm_break";
+          id(mqtt_component)->subscribe(topic,
+            [](const std::string &t, const std::string &p) {
+              ESP_LOGI("evm", "MQTT break trigger on %s (payload='%s')",
+                       t.c_str(), p.c_str());
+              id(evm_break_pulse).execute();
+            });
+          ESP_LOGI("evm", "Subscribed to %s for EVM break", topic.c_str());
+
 interval:
-  # Poll until the subscribe sticks. Self-noops after the static bool flips.
+  # Poll until the subscribes stick. Self-noop after their static bools flip.
   - interval: 5s
     then:
       - script.execute: evm_reset_subscribe
+      - script.execute: evm_break_subscribe
 
 button:
   # HA-visible "Reset EVM" button. Reaches HA via the ESPHome native API
