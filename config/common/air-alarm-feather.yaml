@@ -28,6 +28,17 @@ esp32:
       CONFIG_LWIP_TCP_SND_BUF_DEFAULT: "16384"
       CONFIG_LWIP_TCP_WND_DEFAULT: "16384"
 
+      # Socket FD pool. Default 10 was too tight: MQTT + HA API + OTA
+      # listen + 2 stream_server listen sockets + 1-2 stream clients +
+      # transient HTTP-request fetcher + ~1 loop's worth of FDs lingering
+      # between disconnect_all() setting the flag and cleanup() actually
+      # destructing the unique_ptr<Socket>. Hitting the cap surfaced as
+      # accept() failing with errno 23 (ENFILE) and the listening port
+      # RST'ing incoming connections — clients saw "connection refused"
+      # with no preceding accept log on the device. 16 gives ~6 socket
+      # headroom over the steady-state usage.
+      CONFIG_LWIP_MAX_SOCKETS: "16"
+
 logger:
   level: INFO
   logs:
