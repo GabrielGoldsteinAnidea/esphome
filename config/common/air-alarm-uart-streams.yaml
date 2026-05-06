@@ -30,6 +30,13 @@
 #   esphome/<device_id>-<device_num>/evm_reset_event
 # with retain=false. Subscribe to it from AppDaemon / HA to confirm the
 # reset actually executed.
+#
+# EVM break: publish any payload to
+#   esphome/<device_id>-<device_num>/evm_break
+# to drive uart_control TX (GPIO14) LOW for 10ms — generates a UART break
+# condition the peer can detect. Confirmation timestamp published to
+#   esphome/<device_id>-<device_num>/evm_break_event
+# (retain=false) on each break.
 
 # Stream-server lives as a git submodule at
 # config/external_components/esphome-stream-server-v2 pointing at the
@@ -101,8 +108,12 @@ script:
   - id: evm_reset_pulse
     mode: restart
     then:
+      # WARN level so the message reaches MQTT via the logger.on_message
+      # forward in air-alarm-common.yaml (the WARN+ filter keeps high-rate
+      # sensor / interval logs off the topic). Serial sees WARN+ regardless,
+      # so this doesn't lose visibility there.
       - logger.log:
-          level: INFO
+          level: WARN
           format: "EVM reset: asserting GPIO12 LOW (500ms pulse)"
       - output.turn_on: evm_reset
       - lambda: |-
@@ -123,7 +134,7 @@ script:
       - delay: 500ms
       - output.turn_off: evm_reset
       - logger.log:
-          level: INFO
+          level: WARN
           format: "EVM reset: GPIO12 released — pulse complete"
 
   # Subscribe to the per-device reset command topic. The topic depends on
@@ -163,9 +174,26 @@ script:
   - id: evm_break_pulse
     mode: single
     then:
+      # WARN — same rationale as evm_reset_pulse above: reaches MQTT log
+      # topic via logger.on_message, still appears in serial.
       - logger.log:
-          level: INFO
+          level: WARN
           format: "EVM break: 10ms break on uart_control (GPIO14)"
+      - lambda: |-
+          // Mirror of evm_reset's confirmation publish — ISO-Z timestamp
+          // to a dedicated event topic so AppDaemon / HA can subscribe
+          // without scraping the log topic.
+          if (!id(g_provisioned)) return;
+          if (!id(mqtt_component)->is_connected()) return;
+          struct timeval tv;
+          gettimeofday(&tv, nullptr);
+          char ts[32];
+          strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", gmtime(&tv.tv_sec));
+          sprintf(ts + strlen(ts), ".%03ldZ", tv.tv_usec / 1000);
+          std::string topic = "esphome/" + id(g_device_id) + "-"
+                              + str_sprintf("%d", id(g_device_num))
+                              + "/evm_break_event";
+          id(mqtt_component)->publish(topic, std::string(ts), 0, false);
       - stream_server.send_break:
           id: stream_server_control
           duration: 10ms
