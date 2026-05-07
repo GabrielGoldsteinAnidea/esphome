@@ -283,7 +283,11 @@ time:
               id(mqtt_component)->publish(base + "/time_sync", std::string(ts), 0, false);
               ESP_LOGI("sntp", "SNTP first sync — time_sync: %s", ts);
             } else {
-              ESP_LOGI("sntp", "SNTP time synchronized");
+              // Demoted to DEBUG — fires every ~30s on a healthy device,
+              // adds no signal beyond confirming the watchdog will stay
+              // happy. The first-sync line above + the SNTP timeout WARN
+              // in the watchdog interval cover the meaningful events.
+              ESP_LOGD("sntp", "SNTP time synchronized");
             }
 
     # Publish time_sync at exact 5-minute wall-clock boundaries so all devices
