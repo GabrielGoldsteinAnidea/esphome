@@ -39,6 +39,12 @@ esp32:
       # headroom over the steady-state usage.
       CONFIG_LWIP_MAX_SOCKETS: "16"
 
+      # Enable setsockopt(SO_SNDBUF, ...) so stream_server can give a
+      # single high-throughput port (data, 6639) a larger TCP send
+      # buffer than the device-wide CONFIG_LWIP_TCP_SND_BUF_DEFAULT
+      # without inflating idle sockets' caps. Off by default in ESP-IDF.
+      CONFIG_LWIP_SO_SNDBUF: "y"
+
 logger:
   level: INFO
   logs:
