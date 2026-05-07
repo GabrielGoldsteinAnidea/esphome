@@ -90,13 +90,6 @@ stream_server:
   - id: stream_server_data
     uart_id: uart_data
     port: 6639
-    # Override the device-wide TCP send buffer cap (16384 default in
-    # air-alarm-feather.yaml) for accepted clients on this port only.
-    # 65535 ≈ 712ms of headroom at 921600 baud; absorbs the 60-100KB
-    # bursts seen in the field without affecting other sockets'
-    # memory footprint. Requires CONFIG_LWIP_SO_SNDBUF=y, set in
-    # air-alarm-feather.yaml.
-    tcp_send_buffer_size: 65535
 
 # ── EVM reset line ───────────────────────────────────────────────────────────
 # Active-low. inverted: true means output.turn_on drives the pin LOW (assert)

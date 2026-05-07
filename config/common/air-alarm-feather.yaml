@@ -21,11 +21,14 @@ esp32:
       CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
 
       # lwIP TCP buffers — defaults (5744 = 4 MSS) are too tight for the
-      # stream_server data path at sustained 921600 baud. With ENS220 task
-      # preemption + WiFi airtime contention, socket->write() routinely
-      # fills the send buffer and returns short writes. Bumping to 16384
-      # gives ~11 MSS of headroom per active TCP socket.
-      CONFIG_LWIP_TCP_SND_BUF_DEFAULT: "16384"
+      # stream_server data path at sustained 921600 baud. Per-PCB caps;
+      # actual memory is elastic from the PBUF pool, so quiet sockets
+      # contribute zero. Per-port override via setsockopt(SO_SNDBUF) is
+      # NOT viable on ESP-IDF — even with CONFIG_LWIP_SO_SNDBUF=y the
+      # TCP path returns ENOPROTOOPT (only UDP is wired). So we bump
+      # the global default. 65535 ≈ 712ms of headroom at 921600 baud,
+      # absorbing the 60-100KB bursts seen in field logs.
+      CONFIG_LWIP_TCP_SND_BUF_DEFAULT: "65535"
       CONFIG_LWIP_TCP_WND_DEFAULT: "16384"
 
       # Socket FD pool. Default 10 was too tight: MQTT + HA API + OTA
@@ -38,12 +41,6 @@ esp32:
       # with no preceding accept log on the device. 16 gives ~6 socket
       # headroom over the steady-state usage.
       CONFIG_LWIP_MAX_SOCKETS: "16"
-
-      # Enable setsockopt(SO_SNDBUF, ...) so stream_server can give a
-      # single high-throughput port (data, 6639) a larger TCP send
-      # buffer than the device-wide CONFIG_LWIP_TCP_SND_BUF_DEFAULT
-      # without inflating idle sockets' caps. Off by default in ESP-IDF.
-      CONFIG_LWIP_SO_SNDBUF: "y"
 
 logger:
   level: INFO
