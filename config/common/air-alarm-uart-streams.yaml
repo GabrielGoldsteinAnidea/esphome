@@ -33,7 +33,7 @@
 #
 # EVM break: publish any payload to
 #   esphome/<device_id>-<device_num>/evm_break
-# to drive uart_control TX (GPIO14) LOW for 10ms — generates a UART break
+# to drive uart_control TX (GPIO14) LOW for 1ms — generates a UART break
 # condition the peer can detect. Confirmation timestamp published to
 #   esphome/<device_id>-<device_num>/evm_break_event
 # (retain=false) on each break.
@@ -188,7 +188,7 @@ script:
       # topic via logger.on_message, still appears in serial.
       - logger.log:
           level: WARN
-          format: "EVM break: 10ms break on uart_control (GPIO14)"
+          format: "EVM break: 1ms break on uart_control (GPIO14)"
       - lambda: |-
           // Mirror of evm_reset's confirmation publish — ISO-Z timestamp
           // to a dedicated event topic so AppDaemon / HA can subscribe
@@ -206,7 +206,7 @@ script:
           id(mqtt_component)->publish(topic, std::string(ts), 0, false);
       - stream_server.send_break:
           id: stream_server_control
-          duration: 10ms
+          duration: 1ms
 
   # Companion subscriber to evm_reset_subscribe — same idempotent pattern,
   # different topic + script.
