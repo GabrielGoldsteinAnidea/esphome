@@ -162,6 +162,43 @@ esphome:
           // violations that priority 10 caused.  WiFi/LwIP (18-23) are on core 0.
           xTaskCreatePinnedToCore(RedLedTask::run, "red_led", 2048, nullptr, 6, nullptr, 1);
 
+          // ── Task stats collector ────────────────────────────────────────────────
+          // vTaskList() and vTaskGetRunTimeStats() iterate every FreeRTOS task and
+          // format their state into a 2KB string. FreeRTOS docs explicitly warn
+          // these are "not for production code" — each call took ~480ms on this
+          // device (20+ tasks), and running them from a 60s ESPHome interval
+          // overflowed the 8KB UART RX buffer on the data port (921600 baud) by
+          // stalling loopTask for half a second every minute.
+          //
+          // Solution: dedicated task on core 1, priority 1 (same as loopTask, no
+          // preemption of WiFi/LwIP on core 0 or ENS220 at priority 8). Wakes on
+          // a binary semaphore with a 60s timeout — periodic refresh from the
+          // timeout, on-demand refresh when the "Refresh Task Stats" HA button
+          // gives the semaphore. Multiple back-to-back gives coalesce (binary
+          // semaphore caps at 1).
+          //
+          // mqtt_component->publish() calls esp_mqtt_client_publish() under the
+          // hood, which is documented thread-safe in ESP-IDF — the publish just
+          // enqueues onto the dedicated mqtt task, so calling it from this task
+          // is fine.
+          id(g_task_stats_trigger) = xSemaphoreCreateBinary();
+          struct TaskStatsTask {
+            static void run(void *) {
+              while (true) {
+                xSemaphoreTake(id(g_task_stats_trigger), pdMS_TO_TICKS(60000));
+                if (!id(g_provisioned)) continue;
+                static char buf[2048];
+                std::string base = "esphome/" + id(g_device_id) + "-"
+                                   + str_sprintf("%d", id(g_device_num));
+                vTaskList(buf);
+                id(mqtt_component)->publish(base + "/task_list", std::string(buf), 0, false);
+                vTaskGetRunTimeStats(buf);
+                id(mqtt_component)->publish(base + "/task_runtime", std::string(buf), 0, false);
+              }
+            }
+          };
+          xTaskCreatePinnedToCore(TaskStatsTask::run, "task_stats", 4096, nullptr, 1, nullptr, 1);
+
 button:
   - platform: template
     name: "Refresh Debug Info"
@@ -169,6 +206,21 @@ button:
     icon: mdi:bug-check
     on_press:
       - component.update: debug_component
+
+  # On-demand trigger for the task-stats collector running in its own
+  # FreeRTOS task (see on_boot above). Each press gives the binary
+  # semaphore — the task wakes, runs vTaskList / vTaskGetRunTimeStats off
+  # the main loop, and publishes to esphome/<id>-<num>/task_list and
+  # /task_runtime. Multiple presses within one collection coalesce.
+  - platform: template
+    name: "Refresh Task Stats"
+    entity_category: diagnostic
+    icon: mdi:chart-bar
+    on_press:
+      - lambda: |-
+          if (id(g_task_stats_trigger) != nullptr) {
+            xSemaphoreGive(id(g_task_stats_trigger));
+          }
 
   - platform: template
     name: "Update Firmware"
@@ -249,6 +301,15 @@ globals:
     restore_value: false
     initial_value: '0'
 
+  # Binary semaphore that drives the task-stats collector task in on_boot.
+  # Created (xSemaphoreCreateBinary) at the top of that task's setup; given
+  # by the "Refresh Task Stats" button to trigger an on-demand refresh.
+  # Stored as a global so the button's lambda can reference it by id().
+  - id: g_task_stats_trigger
+    type: SemaphoreHandle_t
+    restore_value: false
+    initial_value: 'nullptr'
+
 time:
   - platform: homeassistant
     id: esptime
@@ -315,26 +376,16 @@ binary_sensor:
     id: conn_status
 
 interval:
-  # FreeRTOS task stats — fires every 60s.
-  # Publishes vTaskList() and vTaskGetRunTimeStats() to MQTT so you can see
-  # which task is consuming CPU or has a small stack high-water mark without
-  # needing USB serial.  Requires sdkconfig_options in air-alarm-feather.yaml:
+  # FreeRTOS task stats moved to a dedicated task in on_boot above —
+  # vTaskList() / vTaskGetRunTimeStats() each take ~480ms with our task
+  # count and would stall loopTask if run from an interval here. The
+  # task wakes every 60s on its own timer, plus on demand via the
+  # "Refresh Task Stats" HA button. Output topics unchanged:
+  #   esphome/<id>-<num>/task_list
+  #   esphome/<id>-<num>/task_runtime
+  # Required sdkconfig_options remain in air-alarm-feather.yaml:
   #   CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS: "y"
   #   CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
-  #
-  # vTaskList() columns:  name  state(R/B/S/D/X)  priority  stack-hwm  task-num
-  # vTaskGetRunTimeStats(): name  abs-ticks  %-cpu
-  - interval: 60s
-    then:
-      - lambda: |-
-          if (!id(g_provisioned)) return;
-          static char buf[2048];
-          std::string base = "esphome/" + id(g_device_id) + "-"
-                             + str_sprintf("%d", id(g_device_num));
-          vTaskList(buf);
-          id(mqtt_component)->publish(base + "/task_list", std::string(buf), 0, false);
-          vTaskGetRunTimeStats(buf);
-          id(mqtt_component)->publish(base + "/task_runtime", std::string(buf), 0, false);
 
   # SNTP watchdog — fires every 60s. If 120s have elapsed since the last
   # successful sync (and we were previously synced), mark as unsynced and
