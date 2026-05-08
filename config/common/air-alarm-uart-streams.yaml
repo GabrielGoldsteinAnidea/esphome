@@ -116,6 +116,16 @@ script:
           level: WARN
           format: "EVM reset: asserting GPIO12 LOW (500ms pulse)"
       - output.turn_on: evm_reset
+      # Clear stream_server buffers on both ports the moment the reset
+      # asserts. lwIP discards each client's queued TCP send buffer on
+      # disconnect, and uart_flush_input drops anything the EVM sent
+      # before reset that was still queued in our UART RX buffer. When
+      # the host reconnects after the EVM finishes restarting, it sees
+      # only post-reset data — no stale prefix.
+      - stream_server.clear_buffers:
+          id: stream_server_control
+      - stream_server.clear_buffers:
+          id: stream_server_data
       - lambda: |-
           // Publish ISO-Z confirmation timestamp on every reset assert.
           // mqtt: idf_send_async enqueues the publish on the dedicated task
