@@ -11,7 +11,8 @@
       "Bash(do echo:*)",
       "Bash(python -m esphome config $f)",
       "Bash(done)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "PowerShell(gh auth status)"
     ]
   }
 }
